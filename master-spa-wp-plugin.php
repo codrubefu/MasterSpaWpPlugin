@@ -119,9 +119,13 @@ class MasterSpa_WP_Plugin {
 	 */
 	   private function load_dependencies() {
 		   require_once MASTERSPA_PLUGIN_DIR . 'includes/class-logger.php';
-		   require_once MASTERSPA_PLUGIN_DIR . 'includes/class-importer.php';
 		   require_once MASTERSPA_PLUGIN_DIR . 'includes/class-admin-settings.php';
-		   require_once MASTERSPA_PLUGIN_DIR . 'includes/class-custom-checkout-fields.php';
+		   require_once MASTERSPA_PLUGIN_DIR . 'custom-cart/admin-subscription-users-display.php';
+		   $custom_cart_file = MASTERSPA_PLUGIN_DIR . 'custom-cart/subscription-users-cart.php';
+
+		   if ( file_exists( $custom_cart_file ) ) {
+			   require_once $custom_cart_file;
+		   }
 	   }
 	
 	/**
