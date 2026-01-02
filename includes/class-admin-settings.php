@@ -64,8 +64,8 @@ class MasterSpa_Admin_Settings {
 	 */
 	public function add_settings_page() {
 		add_options_page(
-			__( 'MasterSpa Import', 'masterspa-wp-plugin' ),
-			__( 'MasterSpa Import', 'masterspa-wp-plugin' ),
+			__( 'MasterSpa Settings', 'masterspa-wp-plugin' ),
+			__( 'MasterSpa Settings', 'masterspa-wp-plugin' ),
 			'manage_woocommerce',
 			'masterspa-settings',
 			array( $this, 'render_settings_page' )
@@ -199,7 +199,7 @@ class MasterSpa_Admin_Settings {
 		
 		?>
 		<div class="wrap">
-			<h1><?php esc_html_e( 'MasterSpa Import Settings', 'masterspa-wp-plugin' ); ?></h1>
+			<h1><?php esc_html_e( 'MasterSpa  Settings', 'masterspa-wp-plugin' ); ?></h1>
 			
 			<?php settings_errors(); ?>
 			

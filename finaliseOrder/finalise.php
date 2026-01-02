@@ -5,16 +5,16 @@ add_action('woocommerce_order_status_processing', function($order_id) {
     if (!class_exists('WC_Order')) return;
     $order = wc_get_order($order_id);
     if (!$order) return;
-
     // Only proceed if any order item is a 'spa' product (tag or category)
     $has_spa = false;
     foreach ( $order->get_items() as $item ) {
         $product_id = $item->get_product_id();
-        if ( $product_id && has_term( 'spa', array( 'product_tag', 'product_cat' ), $product_id ) ) {
+        if ( $product_id && ( has_term( 'spa', 'product_tag', $product_id ) || has_term( 'spa', 'product_cat', $product_id ) ) ) {
             $has_spa = true;
             break;
         }
     }
+   
     if ( ! $has_spa ) {
         return;
     }
@@ -56,33 +56,32 @@ add_action('woocommerce_order_status_processing', function($order_id) {
         $decoded = json_decode($custom_info, true);
         $order_data['custom_info'] = $decoded ? $decoded : $custom_info;
     }
-
-    // Send via WP HTTP API
-    $args = array(
-        'headers' => array( 'Content-Type' => 'application/json' ),
-        'body'    => wp_json_encode( $order_data ),
-        'timeout' => 30,
-    );
-
-    $response = wp_remote_post( $webhook_url, $args );
-
-    if ( is_wp_error( $response ) ) {
-        $err = $response->get_error_message();
-        if ( class_exists('MasterSpa_Logger') ) {
-            MasterSpa_Logger::log( 'error', 'Webhook post failed: ' . $err );
+    // Use helper for cURL
+    if (!class_exists('MasterSpaCurlHelper')) {
+        $helper_path = dirname(__FILE__,2).'/includes/MasterSpaCurlHelper.php';
+        if (file_exists($helper_path)) {
+            require_once $helper_path;
         }
-        return;
     }
-
-    $code = wp_remote_retrieve_response_code( $response );
-    if ( $code >= 200 && $code < 300 ) {
-        if ( class_exists('MasterSpa_Logger') ) {
-            MasterSpa_Logger::log( 'info', 'Webhook posted successfully for order ' . $order_id );
+    if (class_exists('MasterSpaCurlHelper')) {
+        $result = MasterSpaCurlHelper::post_json($webhook_url, $order_data);
+        if (is_wp_error($result)) {
+            $err = $result->get_error_message();
+            if ( class_exists('MasterSpa_Logger') ) {
+                MasterSpa_Logger::log( 'error', 'Webhook post failed: ' . $err );
+            }
+            return;
         }
-    } else {
-        $body = wp_remote_retrieve_body( $response );
-        if ( class_exists('MasterSpa_Logger') ) {
-            MasterSpa_Logger::log( 'error', 'Webhook returned ' . $code . ' body: ' . substr( $body, 0, 1000 ) );
+        $code = isset($result['code']) ? $result['code'] : 0;
+        if ( $code >= 200 && $code < 300 ) {
+            if ( class_exists('MasterSpa_Logger') ) {
+                MasterSpa_Logger::log( 'info', 'Webhook posted successfully for order ' . $order_id );
+            }
+        } else {
+            $body = isset($result['body']) ? $result['body'] : '';
+            if ( class_exists('MasterSpa_Logger') ) {
+                MasterSpa_Logger::log( 'error', 'Webhook returned ' . $code . ' body: ' . substr( $body, 0, 1000 ) );
+            }
         }
     }
 
