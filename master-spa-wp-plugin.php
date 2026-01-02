@@ -123,6 +123,12 @@ class MasterSpa_WP_Plugin {
 		   require_once MASTERSPA_PLUGIN_DIR . 'custom-cart/admin-subscription-users-display.php';
 		   $custom_cart_file = MASTERSPA_PLUGIN_DIR . 'custom-cart/subscription-users-cart.php';
 
+           // Optional admin pages
+           $admin_logs = MASTERSPA_PLUGIN_DIR . 'admin/logs-list-page.php';
+           if ( file_exists( $admin_logs ) ) {
+               require_once $admin_logs;
+           }
+
 		   if ( file_exists( $custom_cart_file ) ) {
 			   require_once $custom_cart_file;
 		   }
@@ -164,6 +170,7 @@ class MasterSpa_WP_Plugin {
 				'delete_missing'   => false,
 				'dry_run'          => false,
 				'product_status'   => 'publish',
+				'order_completed_webhook_url' => '',
 				'cron_enabled'     => false,
 				'cron_frequency'   => 'daily',
 			);

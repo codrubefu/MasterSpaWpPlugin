@@ -149,6 +149,9 @@ class MasterSpa_Admin_Settings {
 			$this->schedule_cron( $sanitized['cron_frequency'] );
 		}
 		
+		// Webhook URL for order completed
+		$sanitized['order_completed_webhook_url'] = ! empty( $settings['order_completed_webhook_url'] ) ? esc_url_raw( $settings['order_completed_webhook_url'] ) : '';
+
 		return $sanitized;
 	}
 	
@@ -214,6 +217,16 @@ class MasterSpa_Admin_Settings {
 								<td>
 									<input type="url" name="masterspa_settings[api_endpoint]" id="api_endpoint" value="<?php echo esc_attr( ! empty( $settings['api_endpoint'] ) ? $settings['api_endpoint'] : 'http://localhost:8082/api/genprod/spa/only' ); ?>" class="regular-text" required>
 									<p class="description"><?php esc_html_e( 'URL-ul endpoint-ului API pentru import produse.', 'masterspa-wp-plugin' ); ?></p>
+								</td>
+							</tr>
+
+							<tr>
+								<th scope="row">
+									<label for="order_completed_webhook_url"><?php esc_html_e( 'Order Completed Webhook URL', 'masterspa-wp-plugin' ); ?></label>
+								</th>
+								<td>
+									<input type="url" name="masterspa_settings[order_completed_webhook_url]" id="order_completed_webhook_url" value="<?php echo esc_attr( ! empty( $settings['order_completed_webhook_url'] ) ? $settings['order_completed_webhook_url'] : '' ); ?>" class="regular-text">
+									<p class="description"><?php esc_html_e( 'URL la care se va trimite payload-ul JSON când o comandă spa este procesată (opțional).', 'masterspa-wp-plugin' ); ?></p>
 								</td>
 							</tr>
 							
