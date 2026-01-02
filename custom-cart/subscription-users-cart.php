@@ -61,22 +61,22 @@ add_action( 'woocommerce_after_cart_item_name', function( $cart_item, $cart_item
                     <div class="subscription-user-form" id="subscription-form-<?php echo $form_id; ?>">
                         <p style="margin:0 0 8px;">
                             <label>Nume<br>
-                                <input type="text" class="subscription-user-input-name" value="<?php echo esc_attr( $saved['name'] ?? '' ); ?>" style="width:100%; max-width:360px;">
+                                <input type="text" class="subscription-user-input-name" name="subscription_user[<?php echo esc_attr( $cart_item_key ); ?>][<?php echo $i; ?>][name]" value="<?php echo esc_attr( $saved['name'] ?? '' ); ?>" style="width:100%; max-width:360px;">
                             </label>
                         </p>
                         <p style="margin:0 0 8px;">
                             <label>Email<br>
-                                <input type="email" class="subscription-user-input-email" value="<?php echo esc_attr( $saved['email'] ?? '' ); ?>" style="width:100%; max-width:360px;">
+                                <input type="email" class="subscription-user-input-email" name="subscription_user[<?php echo esc_attr( $cart_item_key ); ?>][<?php echo $i; ?>][email]" value="<?php echo esc_attr( $saved['email'] ?? '' ); ?>" style="width:100%; max-width:360px;">
                             </label>
                         </p>
                         <p style="margin:0;">
                             <label>Telefon<br>
-                                <input type="text" class="subscription-user-input-phone" value="<?php echo esc_attr( $saved['phone'] ?? '' ); ?>" style="width:100%; max-width:360px;">
+                                <input type="text" class="subscription-user-input-phone" name="subscription_user[<?php echo esc_attr( $cart_item_key ); ?>][<?php echo $i; ?>][phone]" value="<?php echo esc_attr( $saved['phone'] ?? '' ); ?>" style="width:100%; max-width:360px;">
                             </label>
                         </p>
                         <p style="margin-top:12px;">
                             <label style="display:inline-block; margin-right:12px;">
-                                <input type="checkbox" class="subscription-user-input-sendemail" value="1" <?php echo ! empty( $saved['send_email'] ) ? 'checked' : ''; ?>> Trimite email cu informațiile
+                                <input type="checkbox" class="subscription-user-input-sendemail" name="subscription_user[<?php echo esc_attr( $cart_item_key ); ?>][<?php echo $i; ?>][send_email]" value="1" <?php echo ! empty( $saved['send_email'] ) ? 'checked' : ''; ?>> Trimite email cu informațiile
                             </label>
                             <button type="button" class="update-subscription-user" data-form-id="<?php echo $form_id; ?>">Update</button>
                         </p>
