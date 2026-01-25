@@ -17,9 +17,10 @@ add_action( 'woocommerce_after_cart_item_name', function( $cart_item, $cart_item
 
     // Render hidden inputs once per quantity so data is always submitted with cart form
     for ( $i = 0; $i < $qty; $i++ ) {
-        $saved = $saved_all[ $i ] ?? [ 'name' => '', 'email' => '', 'phone' => '', 'send_email' => '' ];
+        $saved = $saved_all[ $i ] ?? [ 'prenume' => '', 'nume' => '', 'email' => '', 'phone' => '', 'send_email' => '' ];
         ?>
-        <input type="hidden" name="subscription_user[<?php echo esc_attr( $cart_item_key ); ?>][<?php echo $i; ?>][name]" value="<?php echo esc_attr( $saved['name'] ?? '' ); ?>">
+        <input type="hidden" name="subscription_user[<?php echo esc_attr( $cart_item_key ); ?>][<?php echo $i; ?>][prenume]" value="<?php echo esc_attr( $saved['prenume'] ?? '' ); ?>">
+        <input type="hidden" name="subscription_user[<?php echo esc_attr( $cart_item_key ); ?>][<?php echo $i; ?>][nume]" value="<?php echo esc_attr( $saved['nume'] ?? '' ); ?>">
         <input type="hidden" name="subscription_user[<?php echo esc_attr( $cart_item_key ); ?>][<?php echo $i; ?>][email]" value="<?php echo esc_attr( $saved['email'] ?? '' ); ?>">
         <input type="hidden" name="subscription_user[<?php echo esc_attr( $cart_item_key ); ?>][<?php echo $i; ?>][phone]" value="<?php echo esc_attr( $saved['phone'] ?? '' ); ?>">
         <input type="hidden" name="subscription_user[<?php echo esc_attr( $cart_item_key ); ?>][<?php echo $i; ?>][send_email]" value="<?php echo esc_attr( $saved['send_email'] ?? '' ); ?>">
@@ -28,17 +29,20 @@ add_action( 'woocommerce_after_cart_item_name', function( $cart_item, $cart_item
 
     // Render UI (tags + modal trigger) for each quantity
     for ( $i = 0; $i < $qty; $i++ ) {
-        $saved = $saved_all[ $i ] ?? [ 'name' => '', 'email' => '', 'phone' => '' ];
+        $saved = $saved_all[ $i ] ?? [ 'prenume' => '', 'nume' => '', 'email' => '', 'phone' => '' ];
         $form_id = esc_attr( $cart_item_key . '-' . $i );
         ?>
         <div class="subscription-user-under-title" style="margin-top:8px;">
             <div class="subscription-user-info" id="subscription-user-info-<?php echo $form_id; ?>" style="margin-bottom:8px;">
                 <?php
-                if ( $saved['name'] || $saved['email'] || $saved['phone'] ) {
+                if ( $saved['prenume'] || $saved['nume'] || $saved['email'] || $saved['phone'] ) {
                     echo '<strong>Abonat:</strong> ';
                     $tags = [];
-                    if ( $saved['name'] ) {
-                        $tags[] = '<span class="subscriber-tag" style="background:#e0e7ff;color:#222;padding:2px 8px;border-radius:10px;margin-right:4px;">Nume: ' . esc_html( $saved['name'] ) . '</span>';
+                    if ( $saved['prenume'] ) {
+                        $tags[] = '<span class="subscriber-tag" style="background:#e0e7ff;color:#222;padding:2px 8px;border-radius:10px;margin-right:4px;">Prenume: ' . esc_html( $saved['prenume'] ) . '</span>';
+                    }
+                    if ( $saved['nume'] ) {
+                        $tags[] = '<span class="subscriber-tag" style="background:#d0e7ff;color:#222;padding:2px 8px;border-radius:10px;margin-right:4px;">Nume: ' . esc_html( $saved['nume'] ) . '</span>';
                     }
                     if ( $saved['email'] ) {
                         $tags[] = '<span class="subscriber-tag" style="background:#e0ffe0;color:#222;padding:2px 8px;border-radius:10px;margin-right:4px;">Email: ' . esc_html( $saved['email'] ) . '</span>';
@@ -60,8 +64,13 @@ add_action( 'woocommerce_after_cart_item_name', function( $cart_item, $cart_item
                     <h4 style="margin-top:0;">Utilizator abonament (<?php echo ($i+1) . '/' . $qty; ?>)</h4>
                     <div class="subscription-user-form" id="subscription-form-<?php echo $form_id; ?>">
                         <p style="margin:0 0 8px;">
+                            <label>Prenume<br>
+                                <input type="text" class="subscription-user-input-prenume" name="subscription_user[<?php echo esc_attr( $cart_item_key ); ?>][<?php echo $i; ?>][prenume]" value="<?php echo esc_attr( $saved['prenume'] ?? '' ); ?>" style="width:100%; max-width:360px;">
+                            </label>
+                        </p>
+                        <p style="margin:0 0 8px;">
                             <label>Nume<br>
-                                <input type="text" class="subscription-user-input-name" name="subscription_user[<?php echo esc_attr( $cart_item_key ); ?>][<?php echo $i; ?>][name]" value="<?php echo esc_attr( $saved['name'] ?? '' ); ?>" style="width:100%; max-width:360px;">
+                                <input type="text" class="subscription-user-input-nume" name="subscription_user[<?php echo esc_attr( $cart_item_key ); ?>][<?php echo $i; ?>][nume]" value="<?php echo esc_attr( $saved['nume'] ?? '' ); ?>" style="width:100%; max-width:360px;">
                             </label>
                         </p>
                         <p style="margin:0 0 8px;">
@@ -120,14 +129,16 @@ add_action( 'woocommerce_after_cart_contents', function() {
                     var formId = this.id.replace(/^modal-/, '');
                     var $openBtn = $('.open-subscription-modal[data-form-id="' + formId + '"]');
                     var $closeBtn = $modal.find('.close-subscription-modal');
-                    var $name = $modal.find('.subscription-user-input-name');
+                    var $prenume = $modal.find('.subscription-user-input-prenume');
+                    var $nume = $modal.find('.subscription-user-input-nume');
                     var $email = $modal.find('.subscription-user-input-email');
                     var $phone = $modal.find('.subscription-user-input-phone');
                     var $send = $modal.find('.subscription-user-input-sendemail');
                     var $info = $('#subscription-user-info-' + formId);
 
                     function doUpdate(){
-                        var name = $.trim($name.val() || '');
+                        var prenume = $.trim($prenume.val() || '');
+                        var nume = $.trim($nume.val() || '');
                         var email = $.trim($email.val() || '');
                         var phone = $.trim($phone.val() || '');
                         var send_email = ($send.length && $send.is(':checked')) ? '1' : '';
@@ -137,11 +148,13 @@ add_action( 'woocommerce_after_cart_contents', function() {
                         var idx = lastDash > -1 ? formId.substring(lastDash + 1) : '';
                         var $cartForm = $('form.woocommerce-cart-form');
                         if ($cartForm.length){
-                            var $nameField = $cartForm.find('input[name="subscription_user[' + key + '][' + idx + '][name]"]');
+                            var $prenumeField = $cartForm.find('input[name="subscription_user[' + key + '][' + idx + '][prenume]"]');
+                            var $numeField = $cartForm.find('input[name="subscription_user[' + key + '][' + idx + '][nume]"]');
                             var $emailField = $cartForm.find('input[name="subscription_user[' + key + '][' + idx + '][email]"]');
                             var $phoneField = $cartForm.find('input[name="subscription_user[' + key + '][' + idx + '][phone]"]');
                             var $sendField = $cartForm.find('input[name="subscription_user[' + key + '][' + idx + '][send_email]"]');
-                            if ($nameField.length) $nameField.val(name);
+                            if ($prenumeField.length) $prenumeField.val(prenume);
+                            if ($numeField.length) $numeField.val(nume);
                             if ($emailField.length) $emailField.val(email);
                             if ($phoneField.length) $phoneField.val(phone);
                             if ($sendField.length) $sendField.val(send_email);
@@ -165,7 +178,8 @@ add_action( 'woocommerce_after_cart_contents', function() {
                     $closeBtn.on('click.subscription', function(){ $modal.hide(); });
                     $modal.on('click.subscription', function(e){ if (e.target === this) $modal.hide(); });
                     $modal.find('.update-subscription-user').on('click.subscription', doUpdate);
-                    $name.on('keydown.subscription', handleEnterKey);
+                    $prenume.on('keydown.subscription', handleEnterKey);
+                    $nume.on('keydown.subscription', handleEnterKey);
                     $email.on('keydown.subscription', handleEnterKey);
                     $phone.on('keydown.subscription', handleEnterKey);
 
@@ -216,7 +230,8 @@ add_action( 'wp_loaded', function() {
         $subscription_users = [];
         foreach ( $user_data_list as $user_data ) {
             $subscription_users[] = [
-                'name'       => sanitize_text_field( $user_data['name'] ?? '' ),
+                'prenume'    => sanitize_text_field( $user_data['prenume'] ?? '' ),
+                'nume'       => sanitize_text_field( $user_data['nume'] ?? '' ),
                 'email'      => sanitize_email( $user_data['email'] ?? '' ),
                 'phone'      => sanitize_text_field( $user_data['phone'] ?? '' ),
                 'send_email' => isset( $user_data['send_email'] ) && $user_data['send_email'] !== '' ? '1' : '',
@@ -240,14 +255,16 @@ add_action( 'woocommerce_checkout_create_order_line_item', function( $item, $car
     }
 
     foreach ( $values['subscription_user'] as $idx => $data ) {
-        $name      = sanitize_text_field( $data['name'] ?? '' );
+        $prenume   = sanitize_text_field( $data['prenume'] ?? '' );
+        $nume      = sanitize_text_field( $data['nume'] ?? '' );
         $email     = sanitize_email( $data['email'] ?? '' );
         $phone     = sanitize_text_field( $data['phone'] ?? '' );
         $send_email = isset( $data['send_email'] ) && $data['send_email'] === '1' ? true : false;
 
-        if ( $name !== '' )  $item->add_meta_data( 'Abonat - Nume [' . ( $idx + 1 ) . ']', $name, true );
-        if ( $email !== '' ) $item->add_meta_data( 'Abonat - Email [' . ( $idx + 1 ) . ']', $email, true );
-        if ( $phone !== '' ) $item->add_meta_data( 'Abonat - Telefon [' . ( $idx + 1 ) . ']', $phone, true );
+        if ( $prenume !== '' ) $item->add_meta_data( 'Abonat - Prenume [' . ( $idx + 1 ) . ']', $prenume, true );
+        if ( $nume !== '' )    $item->add_meta_data( 'Abonat - Nume [' . ( $idx + 1 ) . ']', $nume, true );
+        if ( $email !== '' )   $item->add_meta_data( 'Abonat - Email [' . ( $idx + 1 ) . ']', $email, true );
+        if ( $phone !== '' )   $item->add_meta_data( 'Abonat - Telefon [' . ( $idx + 1 ) . ']', $phone, true );
         if ( $send_email )      $item->add_meta_data( 'Abonat - Trimite email [' . ( $idx + 1 ) . ']', 'Da', true );
         else                   $item->add_meta_data( 'Abonat - Trimite email [' . ( $idx + 1 ) . ']', 'Nu', true );
     }

@@ -65,6 +65,7 @@ add_action('woocommerce_order_status_processing', function($order_id) {
     }
     if (class_exists('MasterSpaCurlHelper')) {
         $result = MasterSpaCurlHelper::post_json($webhook_url, $order_data);
+        dd($order_data);
         if (is_wp_error($result)) {
             $err = $result->get_error_message();
             if ( class_exists('MasterSpa_Logger') ) {
