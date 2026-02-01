@@ -11,6 +11,8 @@
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
+require_once MASTERSPA_PLUGIN_DIR . 'includes/class-importer.php';
+require_once MASTERSPA_PLUGIN_DIR . 'includes/class-logger.php';
 
 /**
  * MasterSpa Admin Settings class
