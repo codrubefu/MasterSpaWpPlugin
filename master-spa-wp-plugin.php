@@ -21,7 +21,7 @@
  * 3. Asigură-te că WooCommerce este instalat și activ
  * 4. Accesează Settings > MasterSpa Import pentru configurare
  * 5. Configurează endpoint-ul API și opțiunile de import
- * 6. Rulează importul manual sau activează importul automat cu Cron
+ * 6. Rulează importul manual sau activează importul automat cu Cron  
  */
 
 // Exit if accessed directly
