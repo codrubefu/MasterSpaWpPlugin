@@ -196,5 +196,16 @@ class MasterSpa_WP_Plugin {
 	}
 }
 
+function my_plugin_enqueue_styles() {
+    wp_enqueue_style(
+        'my-plugin-style', // handle unic
+        plugin_dir_url(__FILE__) . 'assets/css/style.css', // path către CSS
+        array(), // dependințe (ex: array('woocommerce'))
+        '1.0.0', // versiune
+        'all' // media
+    );
+}
+
+add_action('wp_enqueue_scripts', 'my_plugin_enqueue_styles');
 // Initialize plugin
 MasterSpa_WP_Plugin::get_instance();
