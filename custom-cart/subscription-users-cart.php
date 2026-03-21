@@ -55,7 +55,7 @@ add_action( 'woocommerce_after_cart_item_name', function( $cart_item, $cart_item
                 ?>
             </div>
 
-            <button type="button" class="open-subscription-modal" data-form-id="<?php echo $form_id; ?>" style="margin-bottom:8px;">Adaugă/Editează utilizator pentru acest abonament (<?php echo ($i+1) . '/' . $qty; ?>)</button>
+            <button type="button" class="open-subscription-modal" data-form-id="<?php echo $form_id; ?>" style="margin-bottom:8px;">Modifică beneficiar (<?php echo ($i+1) . '/' . $qty; ?>)</button>
 
             <!-- Modal -->
             <div class="subscription-modal" id="modal-<?php echo $form_id; ?>" style="display:none; position:fixed; z-index:9999; left:0; top:0; width:100vw; height:100vh; background:rgba(0,0,0,0.4);">
