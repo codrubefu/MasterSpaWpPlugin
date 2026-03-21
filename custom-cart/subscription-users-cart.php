@@ -39,16 +39,16 @@ add_action( 'woocommerce_after_cart_item_name', function( $cart_item, $cart_item
                     echo '<strong>Abonat:</strong> ';
                     $tags = [];
                     if ( $saved['prenume'] ) {
-                        $tags[] = '<span class="subscriber-tag" style="background:#e0e7ff;color:#222;padding:2px 8px;border-radius:10px;margin-right:4px;">Prenume: ' . esc_html( $saved['prenume'] ) . '</span>';
+                        $tags[] = '<span class="subscriber-tag" >Prenume: ' . esc_html( $saved['prenume'] ) . '</span>';
                     }
                     if ( $saved['nume'] ) {
-                        $tags[] = '<span class="subscriber-tag" style="background:#d0e7ff;color:#222;padding:2px 8px;border-radius:10px;margin-right:4px;">Nume: ' . esc_html( $saved['nume'] ) . '</span>';
+                        $tags[] = '<span class="subscriber-tag" >Nume: ' . esc_html( $saved['nume'] ) . '</span>';
                     }
                     if ( $saved['email'] ) {
-                        $tags[] = '<span class="subscriber-tag" style="background:#e0ffe0;color:#222;padding:2px 8px;border-radius:10px;margin-right:4px;">Email: ' . esc_html( $saved['email'] ) . '</span>';
+                        $tags[] = '<span class="subscriber-tag" >Email: ' . esc_html( $saved['email'] ) . '</span>';
                     }
                     if ( $saved['phone'] ) {
-                        $tags[] = '<span class="subscriber-tag" style="background:#ffe0e0;color:#222;padding:2px 8px;border-radius:10px;margin-right:4px;">Telefon: ' . esc_html( $saved['phone'] ) . '</span>';
+                        $tags[] = '<span class="subscriber-tag" >Telefon: ' . esc_html( $saved['phone'] ) . '</span>';
                     }
                     echo implode( ' ', $tags );
                 }
