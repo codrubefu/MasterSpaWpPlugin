@@ -47,7 +47,7 @@ class MasterSpaCurlHelper
         $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $error = curl_error($ch);
         curl_close($ch);
-        $log_entry .= "\nData: $data\nResponse: $response\nHTTP Code: $http_code\nError: $error\n";
+        $log_entry .= "\nData: " . json_encode($data) . "\nResponse: $response\nHTTP Code: $http_code\nError: $error\n";
         if (class_exists('MasterSpaLogHelper')) {
             MasterSpaLogHelper::write($log_entry);
         }
