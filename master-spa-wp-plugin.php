@@ -1,6 +1,6 @@
 <?php
 /**
- * Plugin Name: MasterSpa WP Plugin
+ * Plugin Name: MasterSpa WP Plugin - NEW
  * Plugin URI: https://example.com/masterspa-wp-plugin
  * Description: Importă produse în WooCommerce din API-ul MasterSpa. Suportă import manual și automat cu WP Cron.
  * Version: 1.0.0

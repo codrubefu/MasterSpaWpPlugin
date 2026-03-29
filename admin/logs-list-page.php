@@ -9,43 +9,35 @@ function masterspa_render_logs_page() {
     $paged = isset($_GET['paged']) ? max(1, intval($_GET['paged'])) : 1;
     $per_page = 20;
     $result = MasterSpaLogHelper::get_logs($paged, $per_page);
+    
     $logs = $result['logs'];
     $total = $result['total'];
     $last_page = $result['last_page'];
     $current_page = $result['current_page'];
     ?>
-    <div class="wrap">
+     <div class="wrap">
         <h1>MasterSpa Logs</h1>
-        <p>
-            <form method="post" action="<?php echo esc_url( admin_url('admin-post.php') ); ?>" style="display:inline;">
-                <?php wp_nonce_field( 'masterspa_clear_logs', 'masterspa_clear_logs_nonce' ); ?>
-                <input type="hidden" name="action" value="masterspa_clear_logs">
-                <button class="button button-secondary" onclick="return confirm('Ești sigur că vrei să ștergi toate log-urile?');">Clear All Logs</button>
-            </form>
-        </p>
         <table class="widefat fixed" cellspacing="0">
             <thead>
                 <tr>
                     <th>ID</th>
                     <th>Time</th>
-                    <th>Type</th>
-                    <th>SKU</th>
-                    <th>Product ID</th>
+                    <th>Level</th>
                     <th>Message</th>
+                    <th>Context</th>
                 </tr>
             </thead>
             <tbody>
                 <?php if ($logs): foreach ($logs as $log): ?>
                 <tr>
                     <td><?php echo esc_html($log->id); ?></td>
-                    <td><?php echo esc_html($log->created_at ?? $log->import_date); ?></td>
-                    <td><?php echo esc_html($log->log_type ?? ''); ?></td>
-                    <td><?php echo esc_html($log->sku ?? '-'); ?></td>
-                    <td><?php echo esc_html($log->product_id ?? '-'); ?></td>
-                    <td><pre style="white-space:pre-wrap;"><?php echo esc_html($log->message); ?></pre></td>
+                    <td><?php echo esc_html($log->log_time); ?></td>
+                    <td><?php echo isset($log->log_level) ? esc_html($log->log_level) : ''; ?></td>
+                    <td><?php echo isset($log->log_message) ? esc_html($log->log_message) : esc_html($log->message); ?></td>
+                    <td><pre><?php echo isset($log->log_context) ? esc_html($log->log_context) : ''; ?></pre></td>
                 </tr>
                 <?php endforeach; else: ?>
-                <tr><td colspan="6">No logs found.</td></tr>
+                <tr><td colspan="5">No logs found.</td></tr>
                 <?php endif; ?>
             </tbody>
         </table>

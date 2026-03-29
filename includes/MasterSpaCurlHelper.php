@@ -15,8 +15,8 @@ class MasterSpaCurlHelper
     {
         // Logging
 
-        if (!class_exists('MasterHotelLogHelper')) {
-            $log_path = dirname(__FILE__) . '/MasterHotelLogHelper.php';
+        if (!class_exists('MasterSpaLogHelper')) {
+            $log_path = dirname(__FILE__) . '/MasterSpaLogHelper.php';
             if (file_exists($log_path)) {
                 require_once $log_path;
             }
@@ -43,13 +43,13 @@ class MasterSpaCurlHelper
         curl_setopt($ch, CURLOPT_HTTPHEADER, $default_headers);
         curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
         $response = curl_exec($ch);
+       
         $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $error = curl_error($ch);
         curl_close($ch);
-        $log_entry .= "\nResponse: $response\nHTTP Code: $http_code\nError: $error\n";
-
-        if (class_exists('MasterHotelLogHelper')) {
-            MasterHotelLogHelper::write($log_entry);
+        $log_entry .= "\nData: $data\nResponse: $response\nHTTP Code: $http_code\nError: $error\n";
+        if (class_exists('MasterSpaLogHelper')) {
+            MasterSpaLogHelper::write($log_entry);
         }
 
         return array(
