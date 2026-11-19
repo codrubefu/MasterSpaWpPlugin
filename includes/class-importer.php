@@ -118,7 +118,7 @@ class MasterSpa_Importer {
 	 * @return array|WP_Error Products array or WP_Error on failure
 	 */
 	private function fetch_products() {
-		$endpoint = ! empty( $this->settings['api_endpoint'] ) ? $this->settings['api_endpoint'] : 'http://localhost:8082/api/genprod/spa/only';
+		$endpoint = ! empty( $this->settings['api_endpoint'] ) ? $this->settings['api_endpoint'] : 'http://laravel-app/api/genprod/spa/only';
 		$timeout  = ! empty( $this->settings['timeout'] ) ? absint( $this->settings['timeout'] ) : 30;
 		$method   = ! empty( $this->settings['request_method'] ) ? $this->settings['request_method'] : 'GET';
 		

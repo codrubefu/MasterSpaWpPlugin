@@ -254,7 +254,13 @@ add_action( 'woocommerce_checkout_create_order_line_item', function( $item, $car
         return;
     }
 
-    foreach ( $values['subscription_user'] as $idx => $data ) {
+    $qty = max( 1, (int) ( $values['quantity'] ?? 1 ) );
+    $subscribers = array_slice( array_values( $values['subscription_user'] ), 0, $qty );
+
+    foreach ( $subscribers as $idx => $data ) {
+        if ( ! is_array( $data ) ) {
+            continue;
+        }
         $prenume   = sanitize_text_field( $data['prenume'] ?? '' );
         $nume      = sanitize_text_field( $data['nume'] ?? '' );
         $email     = sanitize_email( $data['email'] ?? '' );

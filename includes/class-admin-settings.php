@@ -97,7 +97,7 @@ class MasterSpa_Admin_Settings {
 		$sanitized = array();
 		
 		// API Endpoint
-		$sanitized['api_endpoint'] = ! empty( $settings['api_endpoint'] ) ? esc_url_raw( $settings['api_endpoint'] ) : 'http://localhost:8082/api/genprod/spa/only';
+		$sanitized['api_endpoint'] = ! empty( $settings['api_endpoint'] ) ? esc_url_raw( $settings['api_endpoint'] ) : 'http://laravel-app/api/genprod/spa/only';
 		
 		// Request Method
 		$sanitized['request_method'] = ! empty( $settings['request_method'] ) && 'POST' === $settings['request_method'] ? 'POST' : 'GET';
@@ -151,6 +151,9 @@ class MasterSpa_Admin_Settings {
 			$this->schedule_cron( $sanitized['cron_frequency'] );
 		}
 		
+		// Beneficiary (subscriber) editing in cart
+		$sanitized['cart_beneficiary_enabled'] = ! empty( $settings['cart_beneficiary_enabled'] );
+
 		// Webhook URL for order completed
 		$sanitized['order_completed_webhook_url'] = ! empty( $settings['order_completed_webhook_url'] ) ? esc_url_raw( $settings['order_completed_webhook_url'] ) : '';
 
@@ -217,7 +220,7 @@ class MasterSpa_Admin_Settings {
 									<label for="api_endpoint"><?php esc_html_e( 'API Endpoint', 'masterspa-wp-plugin' ); ?></label>
 								</th>
 								<td>
-									<input type="url" name="masterspa_settings[api_endpoint]" id="api_endpoint" value="<?php echo esc_attr( ! empty( $settings['api_endpoint'] ) ? $settings['api_endpoint'] : 'http://localhost:8082/api/genprod/spa/only' ); ?>" class="regular-text" required>
+									<input type="url" name="masterspa_settings[api_endpoint]" id="api_endpoint" value="<?php echo esc_attr( ! empty( $settings['api_endpoint'] ) ? $settings['api_endpoint'] : 'http://laravel-app/api/genprod/spa/only' ); ?>" class="regular-text" required>
 									<p class="description"><?php esc_html_e( 'URL-ul endpoint-ului API pentru import produse.', 'masterspa-wp-plugin' ); ?></p>
 								</td>
 							</tr>
@@ -318,6 +321,17 @@ class MasterSpa_Admin_Settings {
 								</td>
 							</tr>
 							
+							<tr>
+								<th scope="row"><?php esc_html_e( 'Beneficiar în coș', 'masterspa-wp-plugin' ); ?></th>
+								<td>
+									<label>
+										<input type="checkbox" name="masterspa_settings[cart_beneficiary_enabled]" value="1" <?php checked( ! empty( $settings['cart_beneficiary_enabled'] ) ); ?>>
+										<?php esc_html_e( 'Activează setarea beneficiarului în coș', 'masterspa-wp-plugin' ); ?>
+									</label>
+									<p class="description"><?php esc_html_e( 'Permite clientului să introducă datele beneficiarului (prenume, nume, email, telefon) pentru fiecare produs din coș.', 'masterspa-wp-plugin' ); ?></p>
+								</td>
+							</tr>
+
 							<tr>
 								<th scope="row"><?php esc_html_e( 'Automatic Import (Cron)', 'masterspa-wp-plugin' ); ?></th>
 								<td>

@@ -129,8 +129,15 @@ class MasterSpa_WP_Plugin {
                require_once $admin_logs;
            }
 
-		   if ( file_exists( $custom_cart_file ) ) {
-			   require_once $custom_cart_file;
+		   // Beneficiary (subscriber) editing in cart — optional, off by default
+		   $settings = get_option( 'masterspa_settings', array() );
+		   if ( ! empty( $settings['cart_beneficiary_enabled'] ) ) {
+			   if ( file_exists( $custom_cart_file ) ) {
+				   require_once $custom_cart_file;
+			   }
+
+			   // Cart Block (Store API) support for subscriber data
+			   require_once MASTERSPA_PLUGIN_DIR . 'custom-cart/cart-block-integration.php';
 		   }
 	   }
 	
@@ -162,7 +169,7 @@ class MasterSpa_WP_Plugin {
 		// Set default options if not exists
 		if ( false === get_option( 'masterspa_settings' ) ) {
 			$default_settings = array(
-				'api_endpoint'     => 'http://localhost:8082/api/genprod/spa/only',
+				'api_endpoint'     => 'http://laravel-app/api/genprod/spa/only',
 				'request_method'   => 'GET',
 				'timeout'          => 30,
 				'batch_size'       => 100,
@@ -173,6 +180,7 @@ class MasterSpa_WP_Plugin {
 				'order_completed_webhook_url' => '',
 				'cron_enabled'     => false,
 				'cron_frequency'   => 'daily',
+				'cart_beneficiary_enabled' => false,
 			);
 			add_option( 'masterspa_settings', $default_settings );
 		}

@@ -1,0 +1,27 @@
+
+/* MasterSpa – beneficiari under each Cart Block line item */
+.masterspa-item-subscribers__inner {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+}
+.masterspa-item-subscribers__button.components-button {
+    height: auto;
+    min-height: 30px;
+    white-space: normal;
+    text-align: left;
+}
+/* The order-meta slot box stays empty (UI is rendered in the rows) – hide it */
+.wc-block-components-totals-wrapper.slot-wrapper:has(> .wc-block-components-order-meta:empty) {
+    display: none;
+}
+.masterspa-subscriber-modal .components-base-control {
+    margin-bottom: 12px;
+}
+.masterspa-subscriber-modal__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 16px;
+}
