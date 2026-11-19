@@ -182,7 +182,18 @@ class MasterSpa_Importer {
 		
 		// Extract product fields
 		$title       = ! empty( $product_data['art'] ) ? sanitize_text_field( $product_data['art'] ) : '';
-		$description = ! empty( $product_data['desc1'] ) ? wp_kses_post( $product_data['desc1'] ) : '';
+		// Description: info1 + info2 (each as its own paragraph). Fallback to desc1 if both are empty.
+		$info_parts = array();
+		foreach ( array( 'info1', 'info2' ) as $info_key ) {
+			if ( isset( $product_data[ $info_key ] ) && '' !== trim( (string) $product_data[ $info_key ] ) ) {
+				$info_parts[] = wpautop( wp_kses_post( trim( (string) $product_data[ $info_key ] ) ) );
+			}
+		}
+		if ( ! empty( $info_parts ) ) {
+			$description = implode( "\n", $info_parts );
+		} else {
+			$description = ! empty( $product_data['desc1'] ) ? wp_kses_post( $product_data['desc1'] ) : '';
+		}
 		$clasa       = ! empty( $product_data['clasa'] ) ? sanitize_text_field( $product_data['clasa'] ) : '';
 		$grupa       = ! empty( $product_data['grupa'] ) ? sanitize_text_field( $product_data['grupa'] ) : '';
 		// webSale: 0 => product is not sold online. Missing field => sellable (backward compatible).
