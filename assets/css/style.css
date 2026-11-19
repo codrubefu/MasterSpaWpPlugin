@@ -1,27 +1,75 @@
+.added_to_cart  {
 
-/* MasterSpa – beneficiari under each Cart Block line item */
-.masterspa-item-subscribers__inner {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin-top: 8px;
+    font-size: 100%;
+    margin: 0;
+    line-height: 1;
+    cursor: pointer;
+    position: relative;
+    text-decoration: none;
+    overflow: visible;
+    padding: .618em 1em;
+    font-weight: 700;
+    border-radius: 3px;
+    left: auto;
+    color: green;
+    border: 0;
+    display: inline-block;
+    background-image: none;
+    box-shadow: none;
+    text-shadow: none;
+
+    margin-left:5px;
+
+
 }
-.masterspa-item-subscribers__button.components-button {
-    height: auto;
-    min-height: 30px;
-    white-space: normal;
-    text-align: left;
+.update-subscription-user,
+.open-subscription-modal {
+    display: inline-block;
+    margin-bottom: 0;
+    font-weight: normal;
+    text-align: center;
+    white-space: nowrap;
+    vertical-align: middle;
+    -ms-touch-action: manipulation;
+    touch-action: manipulation;
+    cursor: pointer;
+    background-image: none;
+    border: 1px solid transparent;
+    padding: 6px 12px;
+    font-size: 14px;
+    line-height: 1.42857;
+    border-radius: 4px;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
 }
-/* The order-meta slot box stays empty (UI is rendered in the rows) – hide it */
-.wc-block-components-totals-wrapper.slot-wrapper:has(> .wc-block-components-order-meta:empty) {
-    display: none;
+.subscription-user-form label,
+.subscription-user-form p,
+.subscription-user-form input[type="text"] {
+	width:100%;
+
 }
-.masterspa-subscriber-modal .components-base-control {
-    margin-bottom: 12px;
+
+.subscription-user-info span {
+	display:block;
 }
-.masterspa-subscriber-modal__actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 8px;
-    margin-top: 16px;
+
+.shop_table.cart td,
+.product-thumbnail,
+.product-remove {
+	vertical-align:top !important;
 }
+
+.product-thumbnail  {
+	width:300px;
+}
+
+.product-thumbnail img  {
+	min-width:200px;
+}
+
+.input-text.qty.text{
+	width:80px !important;
+}
+
