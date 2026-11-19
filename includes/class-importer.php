@@ -185,7 +185,9 @@ class MasterSpa_Importer {
 		$description = ! empty( $product_data['desc1'] ) ? wp_kses_post( $product_data['desc1'] ) : '';
 		$clasa       = ! empty( $product_data['clasa'] ) ? sanitize_text_field( $product_data['clasa'] ) : '';
 		$grupa       = ! empty( $product_data['grupa'] ) ? sanitize_text_field( $product_data['grupa'] ) : '';
-		
+		// webSale: 0 => product is not sold online. Missing field => sellable (backward compatible).
+		$web_sale    = ! ( array_key_exists( 'webSale', $product_data ) && 0 === (int) $product_data['webSale'] );
+
 		// Validate required fields
 		if ( empty( $title ) ) {
 			MasterSpa_Logger::log( 'error', 'Product missing title (art field)', null, null, $this->import_date );
@@ -280,6 +282,9 @@ class MasterSpa_Importer {
 			// Stock management off
 			update_post_meta( $product_id, '_manage_stock', 'no' );
 			update_post_meta( $product_id, '_stock_status', 'instock' );
+
+			// Web sale flag (checked by the woocommerce_is_purchasable filter)
+			update_post_meta( $product_id, '_masterspa_web_sale', $web_sale ? 'yes' : 'no' );
 
 			// Set categories
 			$this->set_product_categories( $product_id, $clasa, $grupa );

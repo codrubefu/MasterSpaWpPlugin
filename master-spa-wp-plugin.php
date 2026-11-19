@@ -152,6 +152,27 @@ class MasterSpa_WP_Plugin {
 		
 		// Register cron hooks
 		add_action( 'masterspa_scheduled_import', array( $this, 'run_scheduled_import' ) );
+
+		// Products imported with webSale = 0 cannot be bought online
+		add_filter( 'woocommerce_is_purchasable', array( $this, 'filter_web_sale_purchasable' ), 10, 2 );
+	}
+
+	/**
+	 * Mark products imported with webSale = 0 as not purchasable
+	 *
+	 * @param bool       $purchasable Current purchasable state
+	 * @param WC_Product $product     Product
+	 * @return bool
+	 */
+	public function filter_web_sale_purchasable( $purchasable, $product ) {
+		if ( ! $purchasable || ! $product ) {
+			return $purchasable;
+		}
+		$product_id = $product->get_parent_id() ? $product->get_parent_id() : $product->get_id();
+		if ( 'no' === get_post_meta( $product_id, '_masterspa_web_sale', true ) ) {
+			return false;
+		}
+		return $purchasable;
 	}
 	
 	/**
