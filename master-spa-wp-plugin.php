@@ -19,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 define( 'MASTERSPA_VERSION', '1.2.0' );
-define( 'MASTERSPA_DB_VERSION', 2 );
+define( 'MASTERSPA_DB_VERSION', 3 );
 define( 'MASTERSPA_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'MASTERSPA_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'MASTERSPA_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
@@ -153,6 +153,9 @@ class MasterSpa_WP_Plugin {
 		add_action( 'masterspa_scheduled_import', array( $this, 'run_scheduled_import' ) );
 		add_action( MasterSpa_Importer::BATCH_HOOK, array( $this, 'run_import_batch' ) );
 
+		// Daily log cleanup (retention from the settings).
+		add_action( 'masterspa_cleanup_logs', array( $this, 'cleanup_logs' ) );
+
 		// Products imported with webSale = 0 cannot be bought online.
 		add_filter( 'woocommerce_is_purchasable', array( $this, 'filter_web_sale_purchasable' ), 10, 2 );
 
@@ -216,6 +219,25 @@ class MasterSpa_WP_Plugin {
 	}
 
 	/**
+	 * Delete log entries older than the configured retention.
+	 */
+	public function cleanup_logs() {
+		$settings = get_option( 'masterspa_settings', array() );
+		$days     = isset( $settings['log_retention_days'] ) ? (int) $settings['log_retention_days'] : 30;
+		if ( $days <= 0 ) {
+			return;
+		}
+		MasterSpa_Logger::clear_old_logs( $days );
+
+		// Legacy table (before 1.2.0): full order payloads, no longer shown in the admin.
+		global $wpdb;
+		$legacy = $wpdb->prefix . 'masterspa_logs';
+		if ( $legacy === $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $legacy ) ) ) {
+			$wpdb->query( $wpdb->prepare( "DELETE FROM $legacy WHERE log_time < %s", gmdate( 'Y-m-d H:i:s', time() - $days * DAY_IN_SECONDS ) ) ); // phpcs:ignore WordPress.DB.PreparedSQL
+		}
+	}
+
+	/**
 	 * One-time upgrades between plugin versions.
 	 */
 	public function maybe_upgrade() {
@@ -224,14 +246,42 @@ class MasterSpa_WP_Plugin {
 			return;
 		}
 
-		// v2: log table with longtext messages (unified logger), order sync moved to Action Scheduler.
-		MasterSpa_Logger::create_table();
-		wp_clear_scheduled_hook( 'masterspa_retry_order_sync' );
-		if ( function_exists( 'masterspa_requeue_failed_orders' ) ) {
-			masterspa_requeue_failed_orders();
+		if ( $installed < 2 ) {
+			// v2: log table with longtext messages (unified logger), order sync moved to Action Scheduler.
+			MasterSpa_Logger::create_table();
+			wp_clear_scheduled_hook( 'masterspa_retry_order_sync' );
+			if ( function_exists( 'masterspa_requeue_failed_orders' ) ) {
+				masterspa_requeue_failed_orders();
+			}
+		}
+
+		if ( $installed < 3 ) {
+			// v3: no secrets in the logs, daily log cleanup.
+			$this->redact_secret_in_logs();
+			if ( function_exists( 'as_has_scheduled_action' ) && ! as_has_scheduled_action( 'masterspa_cleanup_logs', array(), MASTERSPA_AS_GROUP ) ) {
+				as_schedule_recurring_action( time() + HOUR_IN_SECONDS, DAY_IN_SECONDS, 'masterspa_cleanup_logs', array(), MASTERSPA_AS_GROUP );
+			}
 		}
 
 		update_option( 'masterspa_db_version', MASTERSPA_DB_VERSION );
+	}
+
+	/**
+	 * Mask the API secret in log entries written before it was masked.
+	 */
+	private function redact_secret_in_logs() {
+		global $wpdb;
+		$settings = get_option( 'masterspa_settings', array() );
+		$secret   = isset( $settings['auth_header'] ) ? (string) $settings['auth_header'] : '';
+		if ( strlen( $secret ) < 4 ) {
+			return;
+		}
+		foreach ( array( $wpdb->prefix . 'masterspa_import_logs', $wpdb->prefix . 'masterspa_logs' ) as $table ) {
+			if ( $table !== $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ) ) {
+				continue;
+			}
+			$wpdb->query( $wpdb->prepare( "UPDATE $table SET message = REPLACE(message, %s, '***') WHERE message LIKE %s", $secret, '%' . $wpdb->esc_like( $secret ) . '%' ) ); // phpcs:ignore WordPress.DB.PreparedSQL
+		}
 	}
 
 	/**
@@ -256,6 +306,7 @@ class MasterSpa_WP_Plugin {
 				'order_timeout'               => 15,
 				'judet_map'                   => array(),
 				'web_sale_message'            => '',
+				'log_retention_days'          => 30,
 			);
 			add_option( 'masterspa_settings', $default_settings );
 		}

@@ -152,6 +152,9 @@ class MasterSpa_Admin_Settings {
 			$this->schedule_cron( $sanitized['cron_frequency'] );
 		}
 		
+		// Log retention (days, 0 = keep forever)
+		$sanitized['log_retention_days'] = isset( $settings['log_retention_days'] ) && '' !== $settings['log_retention_days'] ? min( 3650, absint( $settings['log_retention_days'] ) ) : 30;
+
 		// Text shown instead of "Add to cart" for products with webSale = 0
 		$sanitized['web_sale_message'] = ! empty( $settings['web_sale_message'] ) ? sanitize_text_field( $settings['web_sale_message'] ) : '';
 
@@ -352,7 +355,7 @@ class MasterSpa_Admin_Settings {
 										<input type="checkbox" name="masterspa_settings[delete_missing]" value="1" <?php checked( ! empty( $settings['delete_missing'] ) ); ?>>
 										<?php esc_html_e( 'Șterge produsele care nu mai sunt în feed', 'masterspa-wp-plugin' ); ?>
 									</label>
-									<p class="description"><?php esc_html_e( 'Atenție: Produsele care au SKU-uri MSPA-* dar nu sunt în API vor fi șterse.', 'masterspa-wp-plugin' ); ?></p>
+									<p class="description"><?php esc_html_e( 'Produsele importate (SKU MSPA-* sau marcate de import) care nu mai sunt în API sunt mutate în coșul de gunoi (se pot restaura). Dacă ar dispărea peste jumătate dintre ele, ștergerea nu se face și apare un avertisment în log.', 'masterspa-wp-plugin' ); ?></p>
 									
 									<label>
 										<input type="checkbox" name="masterspa_settings[dry_run]" value="1" <?php checked( ! empty( $settings['dry_run'] ) ); ?>>
@@ -370,6 +373,16 @@ class MasterSpa_Admin_Settings {
 										<?php esc_html_e( 'Activează setarea beneficiarului în coș', 'masterspa-wp-plugin' ); ?>
 									</label>
 									<p class="description"><?php esc_html_e( 'Permite clientului să introducă datele beneficiarului (prenume, nume, email, telefon) pentru fiecare produs din coș. Când opțiunea este activă, prenumele, numele și un email valid sunt obligatorii pentru fiecare pachet spa la finalizarea comenzii.', 'masterspa-wp-plugin' ); ?></p>
+								</td>
+							</tr>
+
+							<tr>
+								<th scope="row">
+									<label for="log_retention_days"><?php esc_html_e( 'Păstrare log-uri (zile)', 'masterspa-wp-plugin' ); ?></label>
+								</th>
+								<td>
+									<input type="number" name="masterspa_settings[log_retention_days]" id="log_retention_days" value="<?php echo esc_attr( isset( $settings['log_retention_days'] ) ? $settings['log_retention_days'] : 30 ); ?>" min="0" max="3650" class="small-text">
+									<p class="description"><?php esc_html_e( 'Log-urile mai vechi se șterg automat, zilnic. 0 = nu se șterg niciodată.', 'masterspa-wp-plugin' ); ?></p>
 								</td>
 							</tr>
 
