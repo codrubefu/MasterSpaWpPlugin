@@ -67,11 +67,34 @@ function masterspa_get_order_webhook_url() {
 	if ( ! is_array( $settings ) ) {
 		return '';
 	}
-	if ( ! empty( $settings['order_completed_webhook_url'] ) ) {
-		return $settings['order_completed_webhook_url'];
-	}
-	// Fallback to api_endpoint if the webhook was stored there.
-	return ! empty( $settings['api_endpoint'] ) ? $settings['api_endpoint'] : '';
+	// No fallback to api_endpoint: that is the product feed, orders must never be posted there.
+	return ! empty( $settings['order_completed_webhook_url'] ) ? (string) $settings['order_completed_webhook_url'] : '';
+}
+
+/**
+ * Whether an order meta key is sent to the server.
+ * Billing/shipping fields (including custom ones such as _billing_cui) and the order info are sent;
+ * internal data (payment gateway, attribution, sync status, debug) is not.
+ *
+ * @param string $key Meta key.
+ * @return bool
+ */
+function masterspa_order_meta_key_allowed( $key ) {
+	$key = (string) $key;
+	$allowed = false !== strpos( $key, '_billing_' ) || false !== strpos( $key, '_shipping_' ) || in_array( $key, array( '_order_info', 'is_vat_exempt' ), true );
+	return (bool) apply_filters( 'masterspa_order_meta_key_allowed', $allowed, $key );
+}
+
+/**
+ * Product meta sent with each item (product_meta_input), same shape as get_post_meta( $id ).
+ *
+ * @return string[]
+ */
+function masterspa_order_product_meta_keys() {
+	return (array) apply_filters(
+		'masterspa_order_product_meta_keys',
+		array( '_sku', '_masterspa_art', '_masterspa_pretdesc', '_regular_price', '_sale_price', '_price', '_masterspa_web_sale' )
+	);
 }
 
 /**
@@ -86,11 +109,30 @@ function masterspa_build_order_payload( $order ) {
 	foreach ( $order->get_items() as $item ) {
 		$item_data  = $item->get_data();
 		$product_id = $item_data['product_id'];
-		$item_data['product_meta_input'] = $product_id ? get_post_meta( $product_id ) : array();
+		$meta_input = array();
+		if ( $product_id ) {
+			foreach ( masterspa_order_product_meta_keys() as $key ) {
+				if ( metadata_exists( 'post', $product_id, $key ) ) {
+					$meta_input[ $key ] = get_post_meta( $product_id, $key, false );
+				}
+			}
+		}
+		$item_data['product_meta_input'] = $meta_input;
 		$order_data['items'][]           = $item_data;
 	}
-	$order_data['meta'] = array();
+
+	// Order meta: only billing/shipping/order info (see masterspa_order_meta_key_allowed()).
+	$order_data['meta_data'] = array();
+	$order_data['meta']      = array();
 	foreach ( $order->get_meta_data() as $meta ) {
+		if ( ! masterspa_order_meta_key_allowed( $meta->key ) ) {
+			continue;
+		}
+		$order_data['meta_data'][]        = array(
+			'id'    => $meta->id,
+			'key'   => $meta->key,
+			'value' => $meta->value,
+		);
 		$order_data['meta'][ $meta->key ] = $meta->value;
 	}
 
@@ -106,7 +148,7 @@ function masterspa_build_order_payload( $order ) {
 		$decoded                   = json_decode( $custom_info, true );
 		$order_data['custom_info'] = $decoded ? $decoded : $custom_info;
 	}
-	return $order_data;
+	return apply_filters( 'masterspa_order_payload', $order_data, $order );
 }
 
 /**

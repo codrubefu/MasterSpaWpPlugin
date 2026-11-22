@@ -56,11 +56,12 @@ class MasterSpaCurlHelper {
 			$error     = '';
 		}
 
-		$log_header_lines = array();
-		foreach ( $all_headers as $name => $value ) {
-			$log_header_lines[] = $name . ': ' . $value;
-		}
-		MasterSpaLogHelper::write( "POST $url\nHeaders: " . wp_json_encode( $log_header_lines ) . "\nData: " . $body . "\nResponse: $raw\nHTTP Code: $http_code\nError: $error\n" );
+		MasterSpaLogHelper::write(
+			"POST $url\nHeaders: " . wp_json_encode( self::headers_for_log( $all_headers ) )
+			. "\nData: " . self::describe_payload( $data, $body )
+			. "\nResponse: " . self::truncate( $raw, 2000 )
+			. "\nHTTP Code: $http_code\nError: $error\n"
+		);
 
 		return array(
 			'response'  => $raw,
@@ -68,6 +69,60 @@ class MasterSpaCurlHelper {
 			'code'      => $http_code,
 			'error'     => '' !== $error ? $error : null,
 		);
+	}
+
+	/**
+	 * Header lines for the log, with secrets masked.
+	 *
+	 * @param array $headers name => value.
+	 * @return string[]
+	 */
+	public static function headers_for_log( $headers ) {
+		$secret_names = array( 'x-api-secret', 'authorization', 'cookie', 'idempotency-key' );
+		$lines        = array();
+		foreach ( $headers as $name => $value ) {
+			if ( in_array( strtolower( $name ), $secret_names, true ) && '' !== (string) $value ) {
+				$value = '***';
+			}
+			$lines[] = $name . ': ' . $value;
+		}
+		return $lines;
+	}
+
+	/**
+	 * Short description of the payload for the log: no personal data.
+	 *
+	 * @param mixed  $data Payload.
+	 * @param string $body Encoded body.
+	 * @return string
+	 */
+	public static function describe_payload( $data, $body ) {
+		$parts = array();
+		if ( is_array( $data ) ) {
+			if ( isset( $data['id'] ) ) {
+				$parts[] = 'order #' . $data['id'];
+			}
+			if ( isset( $data['items'] ) && is_array( $data['items'] ) ) {
+				$parts[] = count( $data['items'] ) . ' items';
+			}
+			if ( isset( $data['total'] ) ) {
+				$parts[] = 'total ' . $data['total'];
+			}
+		}
+		$parts[] = strlen( (string) $body ) . ' bytes';
+		return implode( ', ', $parts );
+	}
+
+	/**
+	 * Truncate long strings for the log.
+	 *
+	 * @param string $text Text.
+	 * @param int    $max  Max length.
+	 * @return string
+	 */
+	public static function truncate( $text, $max ) {
+		$text = (string) $text;
+		return strlen( $text ) > $max ? substr( $text, 0, $max ) . '… [' . strlen( $text ) . ' bytes]' : $text;
 	}
 
 	/**
