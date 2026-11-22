@@ -123,6 +123,7 @@ class MasterSpa_WP_Plugin {
 		   require_once MASTERSPA_PLUGIN_DIR . 'custom-cart/admin-subscription-users-display.php';
 		   $custom_cart_file = MASTERSPA_PLUGIN_DIR . 'custom-cart/subscription-users-cart.php';
 		require_once MASTERSPA_PLUGIN_DIR . 'finaliseOrder/finalise.php';
+		require_once MASTERSPA_PLUGIN_DIR . 'includes/class-storefront.php';
            // Optional admin pages
            $admin_logs = MASTERSPA_PLUGIN_DIR . 'admin/logs-list-page.php';
            if ( file_exists( $admin_logs ) ) {
@@ -150,6 +151,9 @@ class MasterSpa_WP_Plugin {
 			MasterSpa_Admin_Settings::get_instance();
 		}
 		
+		// Storefront design (shop + single product templates)
+		MasterSpa_Storefront::get_instance();
+
 		// Register cron hooks
 		add_action( 'masterspa_scheduled_import', array( $this, 'run_scheduled_import' ) );
 
