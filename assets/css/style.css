@@ -124,3 +124,13 @@
 	content: " *";
 	color: #e2401c;
 }
+
+/* Products not sold online (webSale = 0): note shown instead of the buy button in lists */
+.masterspa-web-sale-note {
+    display: block;
+    font-size: 13px;
+    line-height: 1.4;
+    color: #666;
+    font-style: italic;
+    margin-top: 8px;
+}

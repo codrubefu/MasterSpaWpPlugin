@@ -95,7 +95,7 @@ while ( have_posts() ) :
 						<?php elseif ( ! $product->is_in_stock() ) : ?>
 							<p class="msp-book__note">Pachetul nu mai este disponibil pentru această perioadă.</p>
 						<?php else : ?>
-							<p class="msp-book__note">Acest pachet nu se poate cumpăra online. Pentru rezervare, contactează recepția hotelului.</p>
+							<p class="msp-book__note"><?php echo esc_html( function_exists( 'masterspa_web_sale_message' ) ? masterspa_web_sale_message() : 'Acest pachet nu se poate cumpăra online. Pentru rezervare, contactează recepția hotelului.' ); ?></p>
 						<?php endif; ?>
 					</div>
 				</aside>
