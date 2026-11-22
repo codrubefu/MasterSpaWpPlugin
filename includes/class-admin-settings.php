@@ -11,8 +11,6 @@
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
-require_once MASTERSPA_PLUGIN_DIR . 'includes/class-importer.php';
-require_once MASTERSPA_PLUGIN_DIR . 'includes/class-logger.php';
 
 /**
  * MasterSpa Admin Settings class
@@ -53,6 +51,9 @@ class MasterSpa_Admin_Settings {
 		
 		// Handle clear logs action
 		add_action( 'admin_post_masterspa_clear_logs', array( $this, 'handle_clear_logs' ) );
+
+		// Cancel a running (batched) import
+		add_action( 'admin_post_masterspa_cancel_import', array( $this, 'handle_cancel_import' ) );
 		
 		// Enqueue admin scripts
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_admin_scripts' ) );
@@ -115,7 +116,7 @@ class MasterSpa_Admin_Settings {
 		}
 		
 		// Batch Size
-		$sanitized['batch_size'] = ! empty( $settings['batch_size'] ) ? absint( $settings['batch_size'] ) : 100;
+		$sanitized['batch_size'] = ! empty( $settings['batch_size'] ) ? max( 1, min( 1000, absint( $settings['batch_size'] ) ) ) : 100;
 		
 		// Import Mode
 		$sanitized['import_mode'] = ! empty( $settings['import_mode'] ) && 'update_only' === $settings['import_mode'] ? 'update_only' : 'create_update';
@@ -151,6 +152,9 @@ class MasterSpa_Admin_Settings {
 			$this->schedule_cron( $sanitized['cron_frequency'] );
 		}
 		
+		// Text shown instead of "Add to cart" for products with webSale = 0
+		$sanitized['web_sale_message'] = ! empty( $settings['web_sale_message'] ) ? sanitize_text_field( $settings['web_sale_message'] ) : '';
+
 		// Beneficiary (subscriber) editing in cart
 		$sanitized['cart_beneficiary_enabled'] = ! empty( $settings['cart_beneficiary_enabled'] );
 
@@ -258,7 +262,7 @@ class MasterSpa_Admin_Settings {
 								</th>
 								<td>
 									<input type="number" name="masterspa_settings[order_timeout]" id="order_timeout" value="<?php echo esc_attr( ! empty( $settings['order_timeout'] ) ? $settings['order_timeout'] : 15 ); ?>" min="5" max="60" class="small-text">
-									<p class="description"><?php esc_html_e( 'Cât așteaptă site-ul răspunsul serverului la plasarea comenzii (5-60 secunde). Dacă serverul nu răspunde, comanda este pusă în așteptare.', 'masterspa-wp-plugin' ); ?></p>
+									<p class="description"><?php esc_html_e( 'Cât așteaptă site-ul răspunsul serverului când trimite comanda (5-60 secunde). Trimiterea se face în fundal, după plasarea comenzii; dacă serverul nu răspunde, comanda este pusă în așteptare și se reîncearcă automat.', 'masterspa-wp-plugin' ); ?></p>
 								</td>
 							</tr>
 
@@ -310,7 +314,7 @@ class MasterSpa_Admin_Settings {
 								</th>
 								<td>
 									<input type="number" name="masterspa_settings[batch_size]" id="batch_size" value="<?php echo esc_attr( ! empty( $settings['batch_size'] ) ? $settings['batch_size'] : 100 ); ?>" min="1" class="small-text">
-									<p class="description"><?php esc_html_e( 'Numărul de produse procesate per batch (dacă API-ul suportă).', 'masterspa-wp-plugin' ); ?></p>
+									<p class="description"><?php esc_html_e( 'Câte produse se procesează într-un lot. Importul rulează pe loturi în fundal (WooCommerce > Status > Scheduled Actions, grupul masterspa).', 'masterspa-wp-plugin' ); ?></p>
 								</td>
 							</tr>
 							
@@ -365,7 +369,17 @@ class MasterSpa_Admin_Settings {
 										<input type="checkbox" name="masterspa_settings[cart_beneficiary_enabled]" value="1" <?php checked( ! empty( $settings['cart_beneficiary_enabled'] ) ); ?>>
 										<?php esc_html_e( 'Activează setarea beneficiarului în coș', 'masterspa-wp-plugin' ); ?>
 									</label>
-									<p class="description"><?php esc_html_e( 'Permite clientului să introducă datele beneficiarului (prenume, nume, email, telefon) pentru fiecare produs din coș.', 'masterspa-wp-plugin' ); ?></p>
+									<p class="description"><?php esc_html_e( 'Permite clientului să introducă datele beneficiarului (prenume, nume, email, telefon) pentru fiecare produs din coș. Când opțiunea este activă, prenumele, numele și un email valid sunt obligatorii pentru fiecare pachet spa la finalizarea comenzii.', 'masterspa-wp-plugin' ); ?></p>
+								</td>
+							</tr>
+
+							<tr>
+								<th scope="row">
+									<label for="web_sale_message"><?php esc_html_e( 'Mesaj produse nevândute online', 'masterspa-wp-plugin' ); ?></label>
+								</th>
+								<td>
+									<input type="text" name="masterspa_settings[web_sale_message]" id="web_sale_message" value="<?php echo esc_attr( ! empty( $settings['web_sale_message'] ) ? $settings['web_sale_message'] : '' ); ?>" class="large-text" placeholder="<?php echo esc_attr( masterspa_web_sale_default_message() ); ?>">
+									<p class="description"><?php esc_html_e( 'Afișat în locul butonului de cumpărare pentru produsele cu webSale = 0 (pagina produsului și lista de produse). Gol = textul implicit.', 'masterspa-wp-plugin' ); ?></p>
 								</td>
 							</tr>
 
@@ -441,9 +455,40 @@ class MasterSpa_Admin_Settings {
 					<!-- Manual Import -->
 					<hr>
 					<h2><?php esc_html_e( 'Manual Import', 'masterspa-wp-plugin' ); ?></h2>
+					<?php $progress = MasterSpa_Importer::get_progress(); ?>
+					<?php if ( $progress ) : ?>
+						<div class="notice notice-info inline">
+							<p>
+								<?php
+								printf(
+									/* translators: 1: processed products, 2: total products, 3: current batch, 4: number of batches */
+									esc_html__( 'Import în curs: %1$d din %2$d produse procesate (lotul %3$d din %4$d).', 'masterspa-wp-plugin' ),
+									(int) $progress['processed'],
+									(int) $progress['total'],
+									(int) $progress['batch'],
+									(int) $progress['batches']
+								);
+								if ( $progress['stale'] ) {
+									echo ' <strong>' . esc_html__( 'Importul pare blocat (nicio activitate de peste o oră).', 'masterspa-wp-plugin' ) . '</strong>';
+								}
+								?>
+							</p>
+							<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="margin-bottom:8px;">
+								<input type="hidden" name="action" value="masterspa_cancel_import">
+								<?php wp_nonce_field( 'masterspa_cancel_import', 'masterspa_cancel_import_nonce' ); ?>
+								<?php submit_button( __( 'Anulează importul', 'masterspa-wp-plugin' ), 'secondary small', 'submit', false ); ?>
+							</form>
+						</div>
+					<?php endif; ?>
 					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 						<input type="hidden" name="action" value="masterspa_run_import">
 						<?php wp_nonce_field( 'masterspa_run_import', 'masterspa_import_nonce' ); ?>
+						<p>
+							<label>
+								<input type="checkbox" name="masterspa_force_update" value="1">
+								<?php esc_html_e( 'Forțează actualizarea tuturor produselor (și a celor nemodificate în API)', 'masterspa-wp-plugin' ); ?>
+							</label>
+						</p>
 						<p>
 							<?php submit_button( __( 'Rulează Import Acum', 'masterspa-wp-plugin' ), 'primary', 'submit', false ); ?>
 						</p>
@@ -466,6 +511,7 @@ class MasterSpa_Admin_Settings {
 									<strong><?php esc_html_e( 'Statistics:', 'masterspa-wp-plugin' ); ?></strong><br>
 									<?php esc_html_e( 'Created:', 'masterspa-wp-plugin' ); ?> <?php echo esc_html( $last_import['stats']['created'] ); ?><br>
 									<?php esc_html_e( 'Updated:', 'masterspa-wp-plugin' ); ?> <?php echo esc_html( $last_import['stats']['updated'] ); ?><br>
+									<?php esc_html_e( 'Nemodificate:', 'masterspa-wp-plugin' ); ?> <?php echo esc_html( isset( $last_import['stats']['unchanged'] ) ? $last_import['stats']['unchanged'] : 0 ); ?><br>
 									<?php esc_html_e( 'Errors:', 'masterspa-wp-plugin' ); ?> <?php echo esc_html( $last_import['stats']['errors'] ); ?><br>
 									<?php esc_html_e( 'Total:', 'masterspa-wp-plugin' ); ?> <?php echo esc_html( $last_import['stats']['total'] ); ?>
 								</p>
@@ -554,19 +600,21 @@ class MasterSpa_Admin_Settings {
 			wp_die( esc_html__( 'Securitate: Nonce invalid.', 'masterspa-wp-plugin' ) );
 		}
 		
-		// Run import
+		// Start the import (batched in the background when Action Scheduler is available)
 		$importer = new MasterSpa_Importer();
-		$result   = $importer->import();
-		
+		$result   = $importer->start( ! empty( $_POST['masterspa_force_update'] ) );
+
 		// Redirect back with message
 		$redirect_url = add_query_arg(
 			array(
-				'page'              => 'masterspa-settings',
-				'import_result'     => $result['success'] ? 'success' : 'error',
-				'import_message'    => urlencode( $result['message'] ),
-				'products_created'  => $result['stats']['created'],
-				'products_updated'  => $result['stats']['updated'],
-				'products_errors'   => $result['stats']['errors'],
+				'page'               => 'masterspa-settings',
+				'import_result'      => $result['success'] ? 'success' : 'error',
+				'import_queued'      => ! empty( $result['queued'] ) ? 1 : 0,
+				'import_message'     => urlencode( $result['message'] ),
+				'products_created'   => $result['stats']['created'],
+				'products_updated'   => $result['stats']['updated'],
+				'products_unchanged' => $result['stats']['unchanged'],
+				'products_errors'    => $result['stats']['errors'],
 			),
 			admin_url( 'options-general.php' )
 		);
@@ -575,6 +623,24 @@ class MasterSpa_Admin_Settings {
 		exit;
 	}
 	
+	/**
+	 * Handle cancel import action
+	 */
+	public function handle_cancel_import() {
+		if ( ! current_user_can( 'manage_woocommerce' ) ) {
+			wp_die( esc_html__( 'Nu ai permisiunea de a anula importul.', 'masterspa-wp-plugin' ) );
+		}
+		if ( ! isset( $_POST['masterspa_cancel_import_nonce'] ) || ! wp_verify_nonce( $_POST['masterspa_cancel_import_nonce'], 'masterspa_cancel_import' ) ) {
+			wp_die( esc_html__( 'Securitate: Nonce invalid.', 'masterspa-wp-plugin' ) );
+		}
+
+		MasterSpa_Importer::cancel();
+		MasterSpa_Logger::log( 'warning', 'Import cancelled by ' . wp_get_current_user()->user_login );
+
+		wp_safe_redirect( add_query_arg( 'page', 'masterspa-settings', admin_url( 'options-general.php' ) ) );
+		exit;
+	}
+
 	/**
 	 * Handle clear logs action
 	 */
@@ -612,11 +678,12 @@ class MasterSpa_Admin_Settings {
 			$type    = 'success' === $_GET['import_result'] ? 'success' : 'error';
 			$message = isset( $_GET['import_message'] ) ? urldecode( $_GET['import_message'] ) : '';
 			
-			if ( 'success' === $type && isset( $_GET['products_created'] ) ) {
+			if ( 'success' === $type && empty( $_GET['import_queued'] ) && isset( $_GET['products_created'] ) ) {
 				$message .= sprintf(
-					' (Created: %d, Updated: %d, Errors: %d)',
+					' (Created: %d, Updated: %d, Unchanged: %d, Errors: %d)',
 					absint( $_GET['products_created'] ),
 					absint( $_GET['products_updated'] ),
+					isset( $_GET['products_unchanged'] ) ? absint( $_GET['products_unchanged'] ) : 0,
 					absint( $_GET['products_errors'] )
 				);
 			}
