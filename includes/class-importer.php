@@ -16,7 +16,42 @@ if ( ! defined( 'ABSPATH' ) ) {
  * MasterSpa Importer class
  */
 class MasterSpa_Importer {
-	
+
+	/**
+	 * Action Scheduler hook processing one batch of the running import.
+	 */
+	const BATCH_HOOK = 'masterspa_import_batch';
+
+	/**
+	 * Option holding the running import (products + progress). Not autoloaded.
+	 */
+	const QUEUE_OPTION = 'masterspa_import_queue';
+
+	/**
+	 * A queue untouched for this long is treated as abandoned and may be replaced.
+	 */
+	const QUEUE_STALE_AFTER = HOUR_IN_SECONDS;
+
+	/**
+	 * Bump when the API → product mapping changes, so every product is rewritten once.
+	 */
+	const MAPPING_VERSION = '2'; // 2: prices saved through WC_Product (stale sale prices cleared).
+
+	/**
+	 * Option used as an import lock (add_option() is atomic on the unique option name).
+	 */
+	const LOCK_OPTION = 'masterspa_import_lock';
+
+	/**
+	 * A lock older than this is considered left over by a crashed request.
+	 */
+	const LOCK_TTL = 900;
+
+	/**
+	 * "Delete missing" is skipped when it would remove more than this share of the imported products.
+	 */
+	const DELETE_MAX_SHARE = 0.5;
+
 	/**
 	 * Settings
 	 *
@@ -37,11 +72,19 @@ class MasterSpa_Importer {
 	 * @var array
 	 */
 	private $stats = array(
-		'created' => 0,
-		'updated' => 0,
-		'errors'  => 0,
-		'total'   => 0,
+		'created'   => 0,
+		'updated'   => 0,
+		'unchanged' => 0,
+		'errors'    => 0,
+		'total'     => 0,
 	);
+
+	/**
+	 * Rewrite products even when their API data did not change.
+	 *
+	 * @var bool
+	 */
+	private $force = false;
 	
 	/**
 	 * Constructor
@@ -52,17 +95,250 @@ class MasterSpa_Importer {
 	}
 	
 	/**
-	 * Run import process
+	 * Run the whole import in the current request (WP-CLI / scripts, or when
+	 * Action Scheduler is not available).
 	 *
-	 * @return array Import statistics
+	 * @param bool $force Rewrite products even if their API data did not change.
+	 * @return array Import result: success, message, stats.
 	 */
-	public function import() {
-		// Log start
-		MasterSpa_Logger::log( 'info', 'Import started', null, null, $this->import_date );
-		
-		// Fetch products from API
+	public function import( $force = false ) {
+		if ( self::get_queue() || ! self::acquire_lock() ) {
+			return $this->busy_result();
+		}
+
+		try {
+			$this->force = (bool) $force;
+			MasterSpa_Logger::log( 'info', 'Import started', null, null, $this->import_date );
+
+			$products = $this->fetch_products_checked();
+			if ( isset( $products['success'] ) && false === $products['success'] ) {
+				return $products;
+			}
+
+			$api_skus = array();
+			foreach ( $products as $product_data ) {
+				$result = $this->process_product( $product_data );
+				if ( ! empty( $result['sku'] ) ) {
+					$api_skus[] = $result['sku'];
+				}
+			}
+
+			return $this->finish( $api_skus );
+		} finally {
+			self::release_lock();
+		}
+	}
+
+	/**
+	 * Start a batched import: fetch the feed, store it, and queue the first batch.
+	 *
+	 * @param bool $force Rewrite products even if their API data did not change.
+	 * @return array Import result: success, message, stats.
+	 */
+	public function start( $force = false ) {
+		if ( ! function_exists( 'as_enqueue_async_action' ) ) {
+			return $this->import( $force );
+		}
+
+		$running = self::get_queue();
+		if ( $running && ! self::is_queue_stale( $running ) ) {
+			return $this->busy_result();
+		}
+		// The lock covers fetching the feed and creating the queue (two clicks / cron + click).
+		if ( ! self::acquire_lock() ) {
+			return $this->busy_result();
+		}
+		try {
+			if ( $running ) {
+				MasterSpa_Logger::log( 'warning', 'Abandoned import replaced by a new one', null, null, $running['import_date'] );
+				self::cancel();
+			}
+			return $this->start_locked( $force );
+		} finally {
+			self::release_lock();
+		}
+	}
+
+	/**
+	 * Body of start(), run while holding the lock.
+	 *
+	 * @param bool $force Rewrite products even if their API data did not change.
+	 * @return array
+	 */
+	private function start_locked( $force ) {
+		$this->force = (bool) $force;
+		MasterSpa_Logger::log( 'info', 'Import started (batched)', null, null, $this->import_date );
+
+		$products = $this->fetch_products_checked();
+		if ( isset( $products['success'] ) && false === $products['success'] ) {
+			return $products;
+		}
+
+		$queue = array(
+			'import_date' => $this->import_date,
+			'force'       => $this->force,
+			'products'    => array_values( $products ),
+			'offset'      => 0,
+			'api_skus'    => array(),
+			'stats'       => $this->stats,
+			'started_at'  => time(),
+			'updated_at'  => time(),
+		);
+		delete_option( self::QUEUE_OPTION );
+		add_option( self::QUEUE_OPTION, $queue, '', 'no' );
+
+		as_enqueue_async_action( self::BATCH_HOOK, array(), MASTERSPA_AS_GROUP );
+
+		return array(
+			'success' => true,
+			'queued'  => true,
+			/* translators: %d: number of products */
+			'message' => sprintf( __( 'Import pornit: %d produse se procesează pe loturi, în fundal.', 'masterspa-wp-plugin' ), count( $products ) ),
+			'stats'   => $this->stats,
+		);
+	}
+
+	/**
+	 * Process the next batch of the running import and queue the following one.
+	 *
+	 * @return array|null Final result when the import finished, null otherwise.
+	 */
+	public function process_batch() {
+		$queue = self::get_queue();
+		if ( ! $queue ) {
+			return null;
+		}
+
+		$this->import_date = $queue['import_date'];
+		$this->force       = ! empty( $queue['force'] );
+		$this->stats       = array_merge( $this->stats, (array) $queue['stats'] );
+
+		$batch_size = ! empty( $this->settings['batch_size'] ) ? max( 1, absint( $this->settings['batch_size'] ) ) : 100;
+		$products   = (array) $queue['products'];
+		$offset     = (int) $queue['offset'];
+		$api_skus   = (array) $queue['api_skus'];
+
+		foreach ( array_slice( $products, $offset, $batch_size ) as $product_data ) {
+			$result = $this->process_product( $product_data );
+			if ( ! empty( $result['sku'] ) ) {
+				$api_skus[] = $result['sku'];
+			}
+		}
+		$offset += $batch_size;
+
+		if ( $offset < count( $products ) ) {
+			$queue['offset']     = $offset;
+			$queue['api_skus']   = $api_skus;
+			$queue['stats']      = $this->stats;
+			$queue['updated_at'] = time();
+			update_option( self::QUEUE_OPTION, $queue, 'no' );
+			as_enqueue_async_action( self::BATCH_HOOK, array(), MASTERSPA_AS_GROUP );
+			return null;
+		}
+
+		delete_option( self::QUEUE_OPTION );
+		return $this->finish( $api_skus );
+	}
+
+	/**
+	 * Progress of the running import, for the admin pages.
+	 *
+	 * @return array|null { processed, total, batch, batches, started_at, stale }
+	 */
+	public static function get_progress() {
+		$queue = self::get_queue();
+		if ( ! $queue ) {
+			return null;
+		}
+		$settings   = get_option( 'masterspa_settings', array() );
+		$batch_size = ! empty( $settings['batch_size'] ) ? max( 1, absint( $settings['batch_size'] ) ) : 100;
+		$total      = count( (array) $queue['products'] );
+		$processed  = min( $total, (int) $queue['offset'] );
+		return array(
+			'processed'  => $processed,
+			'total'      => $total,
+			'batch'      => min( (int) ceil( $total / $batch_size ), (int) floor( $processed / $batch_size ) + 1 ),
+			'batches'    => max( 1, (int) ceil( $total / $batch_size ) ),
+			'started_at' => (int) $queue['started_at'],
+			'stale'      => self::is_queue_stale( $queue ),
+		);
+	}
+
+	/**
+	 * Result returned when another import is running.
+	 *
+	 * @return array
+	 */
+	private function busy_result() {
+		return array(
+			'success' => false,
+			'message' => __( 'Un import este deja în curs. Așteaptă să se termine sau anulează-l.', 'masterspa-wp-plugin' ),
+			'stats'   => $this->stats,
+		);
+	}
+
+	/**
+	 * Take the import lock.
+	 *
+	 * @return bool False when another request holds it.
+	 */
+	private static function acquire_lock() {
+		if ( add_option( self::LOCK_OPTION, time(), '', 'no' ) ) {
+			return true;
+		}
+		$since = (int) get_option( self::LOCK_OPTION );
+		if ( $since && ( time() - $since ) > self::LOCK_TTL ) {
+			delete_option( self::LOCK_OPTION );
+			return (bool) add_option( self::LOCK_OPTION, time(), '', 'no' );
+		}
+		return false;
+	}
+
+	/**
+	 * Release the import lock.
+	 */
+	private static function release_lock() {
+		delete_option( self::LOCK_OPTION );
+	}
+
+	/**
+	 * Cancel the running import.
+	 */
+	public static function cancel() {
+		delete_option( self::QUEUE_OPTION );
+		if ( function_exists( 'as_unschedule_all_actions' ) ) {
+			as_unschedule_all_actions( self::BATCH_HOOK, array(), MASTERSPA_AS_GROUP );
+		}
+	}
+
+	/**
+	 * Running import queue, or null.
+	 *
+	 * @return array|null
+	 */
+	private static function get_queue() {
+		$queue = get_option( self::QUEUE_OPTION );
+		return is_array( $queue ) && isset( $queue['products'], $queue['import_date'] ) ? $queue : null;
+	}
+
+	/**
+	 * Whether the queue has not moved for too long.
+	 *
+	 * @param array $queue Queue.
+	 * @return bool
+	 */
+	private static function is_queue_stale( $queue ) {
+		return ( time() - (int) $queue['updated_at'] ) > self::QUEUE_STALE_AFTER;
+	}
+
+	/**
+	 * Fetch the feed and turn errors / empty feeds into an import result.
+	 *
+	 * @return array Products, or a result array with success = false.
+	 */
+	private function fetch_products_checked() {
 		$products = $this->fetch_products();
-		
+
 		if ( is_wp_error( $products ) ) {
 			$error_message = $products->get_error_message();
 			MasterSpa_Logger::log( 'error', 'API request failed: ' . $error_message, null, null, $this->import_date );
@@ -72,7 +348,7 @@ class MasterSpa_Importer {
 				'stats'   => $this->stats,
 			);
 		}
-		
+
 		if ( empty( $products ) ) {
 			MasterSpa_Logger::log( 'warning', 'No products received from API', null, null, $this->import_date );
 			return array(
@@ -81,37 +357,32 @@ class MasterSpa_Importer {
 				'stats'   => $this->stats,
 			);
 		}
-		
-		// Track SKUs from API
-		$api_skus = array();
-		
-		// Process each product
-		foreach ( $products as $product_data ) {
-			$result = $this->process_product( $product_data );
-			
-			if ( ! empty( $result['sku'] ) ) {
-				$api_skus[] = $result['sku'];
-			}
-		}
-		
-		// Handle delete missing products option
+
+		return $products;
+	}
+
+	/**
+	 * Final steps after every product was processed.
+	 *
+	 * @param array $api_skus SKUs present in the feed.
+	 * @return array Import result.
+	 */
+	private function finish( $api_skus ) {
 		if ( ! empty( $this->settings['delete_missing'] ) && ! empty( $this->settings['import_mode'] ) && 'create_update' === $this->settings['import_mode'] ) {
 			$this->delete_missing_products( $api_skus );
 		}
-		
-		// Save import summary
+
 		$this->save_import_summary();
-		
-		// Log completion
-		MasterSpa_Logger::log( 'info', sprintf( 'Import completed: %d created, %d updated, %d errors', $this->stats['created'], $this->stats['updated'], $this->stats['errors'] ), null, null, $this->import_date );
-		
+
+		MasterSpa_Logger::log( 'info', sprintf( 'Import completed: %d created, %d updated, %d unchanged, %d errors', $this->stats['created'], $this->stats['updated'], $this->stats['unchanged'], $this->stats['errors'] ), null, null, $this->import_date );
+
 		return array(
 			'success' => true,
 			'message' => __( 'Import finalizat cu succes.', 'masterspa-wp-plugin' ),
 			'stats'   => $this->stats,
 		);
 	}
-	
+
 	/**
 	 * Fetch products from API
 	 *
@@ -231,6 +502,13 @@ class MasterSpa_Importer {
 		
 		// Check dry run mode
 		$dry_run = ! empty( $this->settings['dry_run'] );
+
+		// Skip products whose API data (and import settings) did not change since the last import.
+		$hash = $this->product_hash( $product_data );
+		if ( $existing_product_id && ! $this->force && ! $dry_run && 'trash' !== get_post_status( $existing_product_id ) && $hash === get_post_meta( $existing_product_id, '_masterspa_hash', true ) ) {
+			$this->stats['unchanged']++;
+			return array( 'success' => true, 'sku' => $sku, 'product_id' => $existing_product_id );
+		}
 		
 		// Process prices
 		$prices = $this->extract_prices( $product_data );
@@ -289,30 +567,16 @@ class MasterSpa_Importer {
 		
 		// Set product meta and attributes
 		if ( ! $dry_run && $product_id ) {
-			// Set SKU
-			update_post_meta( $product_id, '_sku', $sku );
-
 			// Original API fields (name without the offer period, offer description)
 			update_post_meta( $product_id, '_masterspa_art', $title );
 			update_post_meta( $product_id, '_masterspa_pretdesc', $prices['desc'] );
+			// Marks products managed by the import (used by "delete missing").
+			update_post_meta( $product_id, '_masterspa_imported', 'yes' );
 
-			// Set prices
-			if ( ! empty( $prices['regular'] ) ) {
-				update_post_meta( $product_id, '_regular_price', $prices['regular'] );
-				update_post_meta( $product_id, '_price', $prices['regular'] );
-			}
-
-			if ( ! empty( $prices['sale'] ) && $prices['sale'] < $prices['regular'] ) {
-				update_post_meta( $product_id, '_sale_price', $prices['sale'] );
-				update_post_meta( $product_id, '_price', $prices['sale'] );
-			}
-
-			// Set as simple product
+			// SKU, prices and stock through WC_Product: keeps _price, the lookup table and caches in sync
+			// and clears a sale price that disappeared from the API.
 			wp_set_object_terms( $product_id, 'simple', 'product_type' );
-
-			// Stock management off
-			update_post_meta( $product_id, '_manage_stock', 'no' );
-			update_post_meta( $product_id, '_stock_status', 'instock' );
+			$this->save_product_data( $product_id, $sku, $prices );
 
 			// Web sale flag (checked by the woocommerce_is_purchasable filter)
 			update_post_meta( $product_id, '_masterspa_web_sale', $web_sale ? 'yes' : 'no' );
@@ -333,11 +597,59 @@ class MasterSpa_Importer {
 			if (isset($spa_tag_id)) {
 				wp_set_post_terms($product_id, array($spa_tag_id), 'product_tag', true);
 			}
+
+			// Saved last: a product interrupted mid-update is rewritten on the next import.
+			update_post_meta( $product_id, '_masterspa_hash', $hash );
 		}
 		
 		return array( 'success' => true, 'sku' => $sku, 'product_id' => $product_id );
 	}
 	
+	/**
+	 * Save SKU, prices and stock with the WooCommerce product API.
+	 *
+	 * @param int    $product_id Product ID.
+	 * @param string $sku        SKU.
+	 * @param array  $prices     Result of extract_prices().
+	 */
+	private function save_product_data( $product_id, $sku, $prices ) {
+		$product = new WC_Product_Simple( $product_id );
+
+		try {
+			$product->set_sku( $sku );
+		} catch ( WC_Data_Exception $e ) {
+			// Another product (e.g. in the trash) holds the SKU: keep the old behaviour.
+			update_post_meta( $product_id, '_sku', $sku );
+			MasterSpa_Logger::log( 'warning', 'SKU kept via meta: ' . $e->getMessage(), $sku, $product_id, $this->import_date );
+		}
+
+		// No price in the API: keep the current regular price (previous behaviour).
+		if ( $prices['regular'] > 0 ) {
+			$product->set_regular_price( wc_format_decimal( $prices['regular'] ) );
+		}
+		$on_sale = $prices['sale'] > 0 && $prices['sale'] < $prices['regular'];
+		$product->set_sale_price( $on_sale ? wc_format_decimal( $prices['sale'] ) : '' );
+		if ( ! $on_sale ) {
+			$product->set_date_on_sale_from( null );
+			$product->set_date_on_sale_to( null );
+		}
+
+		$product->set_manage_stock( false );
+		$product->set_stock_status( 'instock' );
+		$product->save();
+	}
+
+	/**
+	 * Fingerprint of the API data plus the settings that shape the product.
+	 *
+	 * @param array $product_data Product data from API.
+	 * @return string
+	 */
+	private function product_hash( $product_data ) {
+		$status = ! empty( $this->settings['product_status'] ) ? $this->settings['product_status'] : 'publish';
+		return md5( self::MAPPING_VERSION . '|' . $status . '|' . wp_json_encode( $product_data ) );
+	}
+
 	/**
 	 * Generate SKU for product
 	 *
@@ -558,30 +870,57 @@ class MasterSpa_Importer {
 		if ( empty( $api_skus ) ) {
 			return;
 		}
-		
+
 		global $wpdb;
-		
-		// Get all product SKUs with MSPA prefix
-		$all_skus = $wpdb->get_col(
-			"SELECT meta_value FROM {$wpdb->postmeta} WHERE meta_key = '_sku' AND meta_value LIKE 'MSPA-%'"
+
+		// Products managed by the import: marked by it, or with the historical MSPA- SKU prefix.
+		$rows = $wpdb->get_results(
+			"SELECT p.ID AS id, sku.meta_value AS sku
+			FROM {$wpdb->posts} p
+			INNER JOIN {$wpdb->postmeta} sku ON sku.post_id = p.ID AND sku.meta_key = '_sku'
+			LEFT JOIN {$wpdb->postmeta} imp ON imp.post_id = p.ID AND imp.meta_key = '_masterspa_imported'
+			WHERE p.post_type = 'product'
+				AND p.post_status NOT IN ( 'trash', 'auto-draft' )
+				AND ( imp.meta_value = 'yes' OR sku.meta_value LIKE 'MSPA-%' )"
 		);
-		
-		$missing_skus = array_diff( $all_skus, $api_skus );
-		
-		foreach ( $missing_skus as $sku ) {
-			$product_id = $this->get_product_by_sku( $sku );
-			
-			if ( $product_id ) {
-				if ( empty( $this->settings['dry_run'] ) ) {
-					wp_delete_post( $product_id, true );
-					MasterSpa_Logger::log( 'info', 'Deleted missing product', $sku, $product_id, $this->import_date );
-				} else {
-					MasterSpa_Logger::log( 'info', 'Would delete missing product', $sku, $product_id, $this->import_date );
-				}
+		if ( empty( $rows ) ) {
+			return;
+		}
+
+		$in_feed = array_flip( $api_skus );
+		$missing = array();
+		foreach ( $rows as $row ) {
+			if ( ! isset( $in_feed[ $row->sku ] ) ) {
+				$missing[] = $row;
+			}
+		}
+		if ( empty( $missing ) ) {
+			return;
+		}
+
+		// Safety net: a partial / broken feed must not empty the shop.
+		if ( count( $rows ) >= 10 && count( $missing ) > count( $rows ) * self::DELETE_MAX_SHARE ) {
+			MasterSpa_Logger::log(
+				'warning',
+				sprintf( 'Delete missing skipped: %d of %d imported products are missing from the feed (limit %d%%). Check the API.', count( $missing ), count( $rows ), self::DELETE_MAX_SHARE * 100 ),
+				null,
+				null,
+				$this->import_date
+			);
+			return;
+		}
+
+		foreach ( $missing as $row ) {
+			if ( empty( $this->settings['dry_run'] ) ) {
+				// Trash (recoverable) instead of a permanent delete: past orders keep their product.
+				wp_trash_post( (int) $row->id );
+				MasterSpa_Logger::log( 'info', 'Missing product moved to trash', $row->sku, $row->id, $this->import_date );
+			} else {
+				MasterSpa_Logger::log( 'info', 'Would move missing product to trash', $row->sku, $row->id, $this->import_date );
 			}
 		}
 	}
-	
+
 	/**
 	 * Save import summary to options
 	 */

@@ -1,279 +1,209 @@
 <?php
+/**
+ * Subscriber (beneficiar) editing in the classic cart (shortcode / PHP template).
+ *
+ * Under each cart item: one summary + "Modifică beneficiar" button per quantity, each opening a modal.
+ * The modal inputs are part of the cart form; "Salvează" submits the form through "Update cart".
+ * Script: assets/js/cart-subscribers.js, styles: assets/css/cart-subscribers.css.
+ *
+ * @package MasterSpaWpPlugin
+ */
+
 if ( ! defined( 'ABSPATH' ) ) {
-    exit;
+	exit;
 }
 
 /**
- * Display subscriber forms and tags under each cart item (per quantity).
+ * Assets, only on the cart page.
  */
-add_action( 'woocommerce_after_cart_item_name', function( $cart_item, $cart_item_key ) {
-    $product = $cart_item['data'] ?? null;
-    if ( ! $product ) {
-        return;
-    }
-
-    $qty = isset( $cart_item['quantity'] ) ? (int) $cart_item['quantity'] : 1;
-    $saved_all = is_array( $cart_item['subscription_user'] ?? null ) ? $cart_item['subscription_user'] : [];
-
-    // Render hidden inputs once per quantity so data is always submitted with cart form
-    for ( $i = 0; $i < $qty; $i++ ) {
-        $saved = $saved_all[ $i ] ?? [ 'prenume' => '', 'nume' => '', 'email' => '', 'phone' => '', 'send_email' => '' ];
-        ?>
-        <input type="hidden" name="subscription_user[<?php echo esc_attr( $cart_item_key ); ?>][<?php echo $i; ?>][prenume]" value="<?php echo esc_attr( $saved['prenume'] ?? '' ); ?>">
-        <input type="hidden" name="subscription_user[<?php echo esc_attr( $cart_item_key ); ?>][<?php echo $i; ?>][nume]" value="<?php echo esc_attr( $saved['nume'] ?? '' ); ?>">
-        <input type="hidden" name="subscription_user[<?php echo esc_attr( $cart_item_key ); ?>][<?php echo $i; ?>][email]" value="<?php echo esc_attr( $saved['email'] ?? '' ); ?>">
-        <input type="hidden" name="subscription_user[<?php echo esc_attr( $cart_item_key ); ?>][<?php echo $i; ?>][phone]" value="<?php echo esc_attr( $saved['phone'] ?? '' ); ?>">
-        <input type="hidden" name="subscription_user[<?php echo esc_attr( $cart_item_key ); ?>][<?php echo $i; ?>][send_email]" value="<?php echo esc_attr( $saved['send_email'] ?? '' ); ?>">
-        <?php
-    }
-
-    // Render UI (tags + modal trigger) for each quantity
-    for ( $i = 0; $i < $qty; $i++ ) {
-        $saved = $saved_all[ $i ] ?? [ 'prenume' => '', 'nume' => '', 'email' => '', 'phone' => '' ];
-        $form_id = esc_attr( $cart_item_key . '-' . $i );
-        ?>
-        <div class="subscription-user-under-title" style="margin-top:8px;">
-            <div class="subscription-user-info" id="subscription-user-info-<?php echo $form_id; ?>" style="margin-bottom:8px;">
-                <?php
-                if ( $saved['prenume'] || $saved['nume'] || $saved['email'] || $saved['phone'] ) {
-                    echo '<strong>Abonat:</strong> ';
-                    $tags = [];
-                    if ( $saved['prenume'] ) {
-                        $tags[] = '<span class="subscriber-tag" >Prenume: ' . esc_html( $saved['prenume'] ) . '</span>';
-                    }
-                    if ( $saved['nume'] ) {
-                        $tags[] = '<span class="subscriber-tag" >Nume: ' . esc_html( $saved['nume'] ) . '</span>';
-                    }
-                    if ( $saved['email'] ) {
-                        $tags[] = '<span class="subscriber-tag" >Email: ' . esc_html( $saved['email'] ) . '</span>';
-                    }
-                    if ( $saved['phone'] ) {
-                        $tags[] = '<span class="subscriber-tag" >Telefon: ' . esc_html( $saved['phone'] ) . '</span>';
-                    }
-                    echo implode( ' ', $tags );
-                }
-                ?>
-            </div>
-
-            <button type="button" class="open-subscription-modal" data-form-id="<?php echo $form_id; ?>" style="margin-bottom:8px;">Modifică beneficiar (<?php echo ($i+1) . '/' . $qty; ?>)</button>
-
-            <!-- Modal -->
-            <div class="subscription-modal" id="modal-<?php echo $form_id; ?>" style="display:none; position:fixed; z-index:9999; left:0; top:0; width:100vw; height:100vh; background:rgba(0,0,0,0.4);">
-                <div style="background:#fff; max-width:420px; margin:5% auto; padding:20px; border-radius:8px; position:relative;">
-                    <button type="button" class="close-subscription-modal" data-form-id="<?php echo $form_id; ?>" style="position:absolute; top:8px; right:8px; font-size:20px; background:none; border:none; cursor:pointer;">&times;</button>
-                    <h4 style="margin-top:0;">Utilizator abonament (<?php echo ($i+1) . '/' . $qty; ?>)</h4>
-                    <div class="subscription-user-form" id="subscription-form-<?php echo $form_id; ?>">
-                        <p style="margin:0 0 8px;">
-                            <label>Prenume<br>
-                                <input type="text" class="subscription-user-input-prenume" name="subscription_user[<?php echo esc_attr( $cart_item_key ); ?>][<?php echo $i; ?>][prenume]" value="<?php echo esc_attr( $saved['prenume'] ?? '' ); ?>" style="width:100%; max-width:360px;">
-                            </label>
-                        </p>
-                        <p style="margin:0 0 8px;">
-                            <label>Nume<br>
-                                <input type="text" class="subscription-user-input-nume" name="subscription_user[<?php echo esc_attr( $cart_item_key ); ?>][<?php echo $i; ?>][nume]" value="<?php echo esc_attr( $saved['nume'] ?? '' ); ?>" style="width:100%; max-width:360px;">
-                            </label>
-                        </p>
-                        <p style="margin:0 0 8px;">
-                            <label>Email<br>
-                                <input type="email" class="subscription-user-input-email" name="subscription_user[<?php echo esc_attr( $cart_item_key ); ?>][<?php echo $i; ?>][email]" value="<?php echo esc_attr( $saved['email'] ?? '' ); ?>" style="width:100%; max-width:360px;">
-                            </label>
-                        </p>
-                        <p style="margin:0;">
-                            <label>Telefon<br>
-                                <input type="text" class="subscription-user-input-phone" name="subscription_user[<?php echo esc_attr( $cart_item_key ); ?>][<?php echo $i; ?>][phone]" value="<?php echo esc_attr( $saved['phone'] ?? '' ); ?>" style="width:100%; max-width:360px;">
-                            </label>
-                        </p>
-                        <p style="margin-top:12px;">
-                            <label style="display:inline-block; margin-right:12px;">
-                                <input type="checkbox" class="subscription-user-input-sendemail" name="subscription_user[<?php echo esc_attr( $cart_item_key ); ?>][<?php echo $i; ?>][send_email]" value="1" <?php echo ! empty( $saved['send_email'] ) ? 'checked' : ''; ?>> Trimite email cu informațiile
-                            </label>
-                            <button type="button" class="update-subscription-user" data-form-id="<?php echo $form_id; ?>">Update</button>
-                        </p>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- per-item inline JS removed; using centralized jQuery initializer below -->
-        <?php
-    }
-}, 10, 2 );
+add_action(
+	'wp_enqueue_scripts',
+	function () {
+		if ( ! function_exists( 'is_cart' ) || ! is_cart() ) {
+			return;
+		}
+		$js  = MASTERSPA_PLUGIN_DIR . 'assets/js/cart-subscribers.js';
+		$css = MASTERSPA_PLUGIN_DIR . 'assets/css/cart-subscribers.css';
+		wp_enqueue_script( 'masterspa-cart-subscribers', MASTERSPA_PLUGIN_URL . 'assets/js/cart-subscribers.js', array( 'jquery' ), file_exists( $js ) ? (string) filemtime( $js ) : MASTERSPA_VERSION, true );
+		wp_enqueue_style( 'masterspa-cart-subscribers', MASTERSPA_PLUGIN_URL . 'assets/css/cart-subscribers.css', array(), file_exists( $css ) ? (string) filemtime( $css ) : MASTERSPA_VERSION );
+	}
+);
 
 /**
- * Add nonce field once in cart so updates are secure
+ * Display subscriber summary + modal under each cart item (one per quantity).
  */
-add_action( 'woocommerce_after_cart_contents', function() {
-    wp_nonce_field( 'save_subscription_users', 'save_subscription_users_nonce' );
+add_action(
+	'woocommerce_after_cart_item_name',
+	function ( $cart_item, $cart_item_key ) {
+		if ( empty( $cart_item['data'] ) ) {
+			return;
+		}
 
-    // Global initializer to (re)bind modal JS after AJAX/cart updates — jQuery-based
-    ?>
-    <script>
-    (function(){
-        function whenJQuery(cb){
-            if (window.jQuery) return cb(window.jQuery);
-            var s = document.createElement('script');
-            s.src = 'https://code.jquery.com/jquery-3.6.0.min.js';
-            s.crossOrigin = 'anonymous';
-            s.onload = function(){ cb(window.jQuery); };
-            document.head.appendChild(s);
-        }
+		$list = masterspa_get_cart_item_subscribers( $cart_item );
+		$qty  = count( $list );
+		$spa  = masterspa_is_spa_product( isset( $cart_item['product_id'] ) ? $cart_item['product_id'] : 0 );
 
-        whenJQuery(function($){
-            function escapeHtml(str){ return $('<div/>').text(str).html(); }
+		foreach ( $list as $i => $saved ) {
+			$form_id = $cart_item_key . '-' . $i;
+			$base    = 'subscription_user[' . $cart_item_key . '][' . $i . ']';
+			$counter = ( $i + 1 ) . '/' . $qty;
+			$missing = $spa ? masterspa_subscriber_missing_fields( $saved ) : array();
+			$fields  = array(
+				'prenume' => array( __( 'Prenume', 'masterspa-wp-plugin' ), 'text' ),
+				'nume'    => array( __( 'Nume', 'masterspa-wp-plugin' ), 'text' ),
+				'email'   => array( __( 'Email', 'masterspa-wp-plugin' ), 'email' ),
+				'phone'   => array( __( 'Telefon', 'masterspa-wp-plugin' ), 'tel' ),
+			);
+			?>
+			<div class="subscription-user-under-title">
+				<div class="subscription-user-info" id="subscription-user-info-<?php echo esc_attr( $form_id ); ?>">
+					<?php
+					$tags = array();
+					foreach ( $fields as $key => $field ) {
+						if ( '' !== $saved[ $key ] ) {
+							$tags[] = '<span class="subscriber-tag">' . esc_html( $field[0] ) . ': ' . esc_html( $saved[ $key ] ) . '</span>';
+						}
+					}
+					if ( $tags ) {
+						echo '<strong>' . esc_html__( 'Abonat:', 'masterspa-wp-plugin' ) . '</strong> ' . implode( ' ', $tags ); // phpcs:ignore WordPress.Security.EscapeOutput -- tags escaped above.
+					}
+					if ( $missing ) {
+						/* translators: %s: missing fields */
+						echo '<span class="subscriber-missing">' . esc_html( sprintf( __( 'De completat: %s', 'masterspa-wp-plugin' ), implode( ', ', $missing ) ) ) . '</span>';
+					}
+					?>
+				</div>
 
-            function initSubscriptionModals(root){
-                root = root || document;
-                $(root).find('.subscription-modal').each(function(){
-                    var $modal = $(this);
-                    if ($modal.data('subInit')) return;
-                    var formId = this.id.replace(/^modal-/, '');
-                    var $openBtn = $('.open-subscription-modal[data-form-id="' + formId + '"]');
-                    var $closeBtn = $modal.find('.close-subscription-modal');
-                    var $prenume = $modal.find('.subscription-user-input-prenume');
-                    var $nume = $modal.find('.subscription-user-input-nume');
-                    var $email = $modal.find('.subscription-user-input-email');
-                    var $phone = $modal.find('.subscription-user-input-phone');
-                    var $send = $modal.find('.subscription-user-input-sendemail');
-                    var $info = $('#subscription-user-info-' + formId);
+				<button type="button" class="open-subscription-modal" data-form-id="<?php echo esc_attr( $form_id ); ?>">
+					<?php
+					/* translators: %s: index/quantity, e.g. 1/2 */
+					echo esc_html( sprintf( __( 'Modifică beneficiar (%s)', 'masterspa-wp-plugin' ), $counter ) );
+					?>
+				</button>
 
-                    function doUpdate(){
-                        var prenume = $.trim($prenume.val() || '');
-                        var nume = $.trim($nume.val() || '');
-                        var email = $.trim($email.val() || '');
-                        var phone = $.trim($phone.val() || '');
-                        var send_email = ($send.length && $send.is(':checked')) ? '1' : '';
-                       
-                        var lastDash = formId.lastIndexOf('-');
-                        var key = lastDash > -1 ? formId.substring(0, lastDash) : formId;
-                        var idx = lastDash > -1 ? formId.substring(lastDash + 1) : '';
-                        var $cartForm = $('form.woocommerce-cart-form');
-                        if ($cartForm.length){
-                            var $prenumeField = $cartForm.find('input[name="subscription_user[' + key + '][' + idx + '][prenume]"]');
-                            var $numeField = $cartForm.find('input[name="subscription_user[' + key + '][' + idx + '][nume]"]');
-                            var $emailField = $cartForm.find('input[name="subscription_user[' + key + '][' + idx + '][email]"]');
-                            var $phoneField = $cartForm.find('input[name="subscription_user[' + key + '][' + idx + '][phone]"]');
-                            var $sendField = $cartForm.find('input[name="subscription_user[' + key + '][' + idx + '][send_email]"]');
-                            if ($prenumeField.length) $prenumeField.val(prenume);
-                            if ($numeField.length) $numeField.val(nume);
-                            if ($emailField.length) $emailField.val(email);
-                            if ($phoneField.length) $phoneField.val(phone);
-                            if ($sendField.length) $sendField.val(send_email);
-
-                            $modal.hide();
-                            var $upd = $cartForm.find('button[name="update_cart"], input[name="update_cart"]');
-                            if ($upd.length){
-                                try{ $upd.first().trigger('click'); }
-                                catch(e){ if ($cartForm[0].requestSubmit) $cartForm[0].requestSubmit(); else $cartForm.submit(); }
-                            } else {
-                                if ($cartForm[0].requestSubmit) $cartForm[0].requestSubmit(); else $cartForm.submit();
-                            }
-                        } else {
-                            $modal.hide();
-                        }
-                    }
-
-                    function handleEnterKey(e){ if (e.which === 13){ e.preventDefault(); doUpdate(); } }
-
-                    $openBtn.on('click.subscription', function(){ $modal.show(); });
-                    $closeBtn.on('click.subscription', function(){ $modal.hide(); });
-                    $modal.on('click.subscription', function(e){ if (e.target === this) $modal.hide(); });
-                    $modal.find('.update-subscription-user').on('click.subscription', doUpdate);
-                    $prenume.on('keydown.subscription', handleEnterKey);
-                    $nume.on('keydown.subscription', handleEnterKey);
-                    $email.on('keydown.subscription', handleEnterKey);
-                    $phone.on('keydown.subscription', handleEnterKey);
-
-                    $modal.data('subInit', 1);
-                });
-            }
-
-            $(function(){ initSubscriptionModals(document); });
-
-            // MutationObserver fallback + WooCommerce events
-            var cartFormEl = document.querySelector('form.woocommerce-cart-form');
-            if (cartFormEl){
-                var mo = new MutationObserver(function(){ initSubscriptionModals(document); });
-                mo.observe(cartFormEl, { childList: true, subtree: true });
-            }
-            $(document).on('updated_wc_div updated_cart_totals wc_fragments_refreshed updated_cart', function(){ initSubscriptionModals(document); });
-        });
-    })();
-    </script>
-    <?php
-} );
-
+				<div class="subscription-modal" id="modal-<?php echo esc_attr( $form_id ); ?>" role="dialog" aria-modal="true" hidden>
+					<div class="subscription-modal__box">
+						<button type="button" class="close-subscription-modal" aria-label="<?php esc_attr_e( 'Închide', 'masterspa-wp-plugin' ); ?>">&times;</button>
+						<h4>
+							<?php
+							/* translators: %s: index/quantity, e.g. 1/2 */
+							echo esc_html( sprintf( __( 'Utilizator abonament (%s)', 'masterspa-wp-plugin' ), $counter ) );
+							?>
+						</h4>
+						<div class="subscription-user-form">
+							<?php foreach ( $fields as $key => $field ) : ?>
+								<p>
+									<label>
+										<?php echo esc_html( $field[0] ); ?><?php echo $spa && 'phone' !== $key ? ' <abbr class="required" title="' . esc_attr__( 'obligatoriu', 'masterspa-wp-plugin' ) . '">*</abbr>' : ''; // phpcs:ignore WordPress.Security.EscapeOutput ?><br>
+										<input type="<?php echo esc_attr( $field[1] ); ?>" class="subscription-user-input" name="<?php echo esc_attr( $base . '[' . $key . ']' ); ?>" value="<?php echo esc_attr( $saved[ $key ] ); ?>">
+									</label>
+								</p>
+							<?php endforeach; ?>
+							<p class="subscription-user-form__actions">
+								<label>
+									<input type="checkbox" name="<?php echo esc_attr( $base . '[send_email]' ); ?>" value="1" <?php checked( '' !== $saved['send_email'] ); ?>>
+									<?php esc_html_e( 'Trimite email cu informațiile', 'masterspa-wp-plugin' ); ?>
+								</label>
+								<button type="button" class="update-subscription-user"><?php esc_html_e( 'Salvează', 'masterspa-wp-plugin' ); ?></button>
+							</p>
+						</div>
+					</div>
+				</div>
+			</div>
+			<?php
+		}
+	},
+	10,
+	2
+);
 
 /**
- * Save subscription_user data when customer clicks Update cart
+ * Nonce, once per cart form.
  */
-add_action( 'wp_loaded', function() {
-    if ( ! isset( $_POST['update_cart'] ) ) {
-        return;
-    }
-    if ( ! WC()->cart ) {
-        return;
-    }
-    if ( ! isset( $_POST['save_subscription_users_nonce'] ) || ! wp_verify_nonce( $_POST['save_subscription_users_nonce'], 'save_subscription_users' ) ) {
-        return;
-    }
-
-    $posted = $_POST['subscription_user'] ?? [];
-    if ( empty( $posted ) || ! is_array( $posted ) ) {
-        return;
-    }
-
-    foreach ( WC()->cart->get_cart() as $cart_item_key => $cart_item ) {
-        if ( ! isset( $posted[ $cart_item_key ] ) || ! is_array( $posted[ $cart_item_key ] ) ) {
-            continue;
-        }
-        $user_data_list = $posted[ $cart_item_key ];
-        $subscription_users = [];
-        foreach ( $user_data_list as $user_data ) {
-            $subscription_users[] = [
-                'prenume'    => sanitize_text_field( $user_data['prenume'] ?? '' ),
-                'nume'       => sanitize_text_field( $user_data['nume'] ?? '' ),
-                'email'      => sanitize_email( $user_data['email'] ?? '' ),
-                'phone'      => sanitize_text_field( $user_data['phone'] ?? '' ),
-                'send_email' => isset( $user_data['send_email'] ) && $user_data['send_email'] !== '' ? '1' : '',
-            ];
-        }
-        WC()->cart->cart_contents[ $cart_item_key ]['subscription_user'] = $subscription_users;
-    }
-
-    // Persist to session
-    WC()->cart->set_session();
-
-}, 20 );
-
+add_action(
+	'woocommerce_after_cart_contents',
+	function () {
+		wp_nonce_field( 'save_subscription_users', 'save_subscription_users_nonce' );
+	}
+);
 
 /**
- * Add subscription users as order item meta so they appear in admin and emails
+ * Save subscription_user data when the cart form is submitted (Update cart).
  */
-add_action( 'woocommerce_checkout_create_order_line_item', function( $item, $cart_item_key, $values, $order ) {
-    if ( empty( $values['subscription_user'] ) || ! is_array( $values['subscription_user'] ) ) {
-        return;
-    }
+add_action(
+	'wp_loaded',
+	function () {
+		if ( ! isset( $_POST['update_cart'] ) || ! function_exists( 'WC' ) || ! WC()->cart ) {
+			return;
+		}
+		if ( ! isset( $_POST['save_subscription_users_nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['save_subscription_users_nonce'] ) ), 'save_subscription_users' ) ) {
+			return;
+		}
 
-    $qty = max( 1, (int) ( $values['quantity'] ?? 1 ) );
-    $subscribers = array_slice( array_values( $values['subscription_user'] ), 0, $qty );
+		$posted = isset( $_POST['subscription_user'] ) ? wp_unslash( $_POST['subscription_user'] ) : array(); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput -- sanitized per field below.
+		if ( empty( $posted ) || ! is_array( $posted ) ) {
+			return;
+		}
 
-    foreach ( $subscribers as $idx => $data ) {
-        if ( ! is_array( $data ) ) {
-            continue;
-        }
-        $prenume   = sanitize_text_field( $data['prenume'] ?? '' );
-        $nume      = sanitize_text_field( $data['nume'] ?? '' );
-        $email     = sanitize_email( $data['email'] ?? '' );
-        $phone     = sanitize_text_field( $data['phone'] ?? '' );
-        $send_email = isset( $data['send_email'] ) && $data['send_email'] === '1' ? true : false;
+		$invalid_email = false;
+		foreach ( WC()->cart->get_cart() as $cart_item_key => $cart_item ) {
+			if ( ! isset( $posted[ $cart_item_key ] ) || ! is_array( $posted[ $cart_item_key ] ) ) {
+				continue;
+			}
+			$subscription_users = array();
+			foreach ( $posted[ $cart_item_key ] as $user_data ) {
+				if ( masterspa_subscriber_email_invalid( $user_data ) ) {
+					$invalid_email = true;
+				}
+				$subscription_users[] = masterspa_sanitize_subscriber( $user_data );
+			}
+			WC()->cart->cart_contents[ $cart_item_key ]['subscription_user'] = $subscription_users;
+		}
 
-        if ( $prenume !== '' ) $item->add_meta_data( 'Abonat - Prenume [' . ( $idx + 1 ) . ']', $prenume, true );
-        if ( $nume !== '' )    $item->add_meta_data( 'Abonat - Nume [' . ( $idx + 1 ) . ']', $nume, true );
-        if ( $email !== '' )   $item->add_meta_data( 'Abonat - Email [' . ( $idx + 1 ) . ']', $email, true );
-        if ( $phone !== '' )   $item->add_meta_data( 'Abonat - Telefon [' . ( $idx + 1 ) . ']', $phone, true );
-        if ( $send_email )      $item->add_meta_data( 'Abonat - Trimite email [' . ( $idx + 1 ) . ']', 'Da', true );
-        else                   $item->add_meta_data( 'Abonat - Trimite email [' . ( $idx + 1 ) . ']', 'Nu', true );
-    }
+		if ( $invalid_email ) {
+			wc_add_notice( __( 'Una dintre adresele de email ale beneficiarilor nu este validă și nu a fost salvată.', 'masterspa-wp-plugin' ), 'error' );
+		}
 
-}, 10, 4 );
+		WC()->cart->set_session();
+	},
+	20
+);
 
+/**
+ * Add subscription users as order item meta so they appear in admin and emails.
+ */
+add_action(
+	'woocommerce_checkout_create_order_line_item',
+	function ( $item, $cart_item_key, $values, $order ) {
+		if ( empty( $values['subscription_user'] ) || ! is_array( $values['subscription_user'] ) ) {
+			return;
+		}
+
+		$qty         = max( 1, (int) ( isset( $values['quantity'] ) ? $values['quantity'] : 1 ) );
+		$subscribers = array_slice( array_values( $values['subscription_user'] ), 0, $qty );
+
+		foreach ( $subscribers as $idx => $data ) {
+			if ( ! is_array( $data ) ) {
+				continue;
+			}
+			$row = masterspa_sanitize_subscriber( $data );
+			$n   = ' [' . ( $idx + 1 ) . ']';
+
+			if ( '' !== $row['prenume'] ) {
+				$item->add_meta_data( 'Abonat - Prenume' . $n, $row['prenume'], true );
+			}
+			if ( '' !== $row['nume'] ) {
+				$item->add_meta_data( 'Abonat - Nume' . $n, $row['nume'], true );
+			}
+			if ( '' !== $row['email'] ) {
+				$item->add_meta_data( 'Abonat - Email' . $n, $row['email'], true );
+			}
+			if ( '' !== $row['phone'] ) {
+				$item->add_meta_data( 'Abonat - Telefon' . $n, $row['phone'], true );
+			}
+			$item->add_meta_data( 'Abonat - Trimite email' . $n, '1' === $row['send_email'] ? 'Da' : 'Nu', true );
+		}
+	},
+	10,
+	4
+);

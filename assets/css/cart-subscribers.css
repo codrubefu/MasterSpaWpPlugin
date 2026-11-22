@@ -1,0 +1,40 @@
+/* MasterSpa – subscriber (beneficiar) modals in the classic cart */
+.subscription-user-under-title { margin-top: 8px; }
+.subscription-user-info { margin-bottom: 8px; }
+.subscription-user-info .subscriber-missing { display: block; margin-top: 4px; color: #b32d2e; font-size: 13px; }
+.open-subscription-modal { margin-bottom: 8px; }
+
+.subscription-modal {
+	position: fixed;
+	z-index: 9999;
+	inset: 0;
+	width: 100vw;
+	height: 100vh;
+	background: rgba( 0, 0, 0, 0.4 );
+	overflow-y: auto;
+}
+.subscription-modal[hidden] { display: none; }
+.subscription-modal__box {
+	position: relative;
+	max-width: 420px;
+	margin: 5% auto;
+	padding: 20px;
+	background: #fff;
+	border-radius: 8px;
+}
+.subscription-modal__box h4 { margin-top: 0; }
+.close-subscription-modal {
+	position: absolute;
+	top: 8px;
+	right: 8px;
+	font-size: 20px;
+	background: none;
+	border: none;
+	cursor: pointer;
+}
+.subscription-user-form p { margin: 0 0 8px; }
+.subscription-user-form input[type="text"],
+.subscription-user-form input[type="email"],
+.subscription-user-form input[type="tel"] { width: 100%; max-width: 360px; }
+.subscription-user-form__actions { margin-top: 12px !important; }
+.subscription-user-form__actions label { display: inline-block; margin-right: 12px; }
