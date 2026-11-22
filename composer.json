@@ -1,0 +1,19 @@
+{
+    "name": "masterspa/masterspa-wp-plugin",
+    "description": "MasterSpa WooCommerce integration (product import, order sync).",
+    "type": "wordpress-plugin",
+    "license": "proprietary",
+    "require": {
+        "php": ">=7.0"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^9.6",
+        "brain/monkey": "^2.6"
+    },
+    "scripts": {
+        "test": "phpunit"
+    },
+    "config": {
+        "sort-packages": true
+    }
+}
