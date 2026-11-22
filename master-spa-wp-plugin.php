@@ -3,7 +3,7 @@
  * Plugin Name: MasterSpa WP Plugin - NEW
  * Plugin URI: https://example.com/masterspa-wp-plugin
  * Description: Importă produse în WooCommerce din API-ul MasterSpa. Suportă import manual și automat cu WP Cron.
- * Version: 1.0.0
+ * Version: 1.1.0
  * Author: MasterSpa Team
  * Author URI: https://example.com
  * Text Domain: masterspa-wp-plugin
@@ -30,7 +30,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Define plugin constants
-define( 'MASTERSPA_VERSION', '1.0.0' );
+define( 'MASTERSPA_VERSION', '1.1.0' );
 define( 'MASTERSPA_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'MASTERSPA_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'MASTERSPA_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
@@ -124,6 +124,8 @@ class MasterSpa_WP_Plugin {
 		   $custom_cart_file = MASTERSPA_PLUGIN_DIR . 'custom-cart/subscription-users-cart.php';
 		require_once MASTERSPA_PLUGIN_DIR . 'finaliseOrder/finalise.php';
 		require_once MASTERSPA_PLUGIN_DIR . 'includes/class-storefront.php';
+		require_once MASTERSPA_PLUGIN_DIR . 'includes/checkout-fields.php';
+		require_once MASTERSPA_PLUGIN_DIR . 'includes/frontend-product.php';
            // Optional admin pages
            $admin_logs = MASTERSPA_PLUGIN_DIR . 'admin/logs-list-page.php';
            if ( file_exists( $admin_logs ) ) {
@@ -206,6 +208,9 @@ class MasterSpa_WP_Plugin {
 				'cron_enabled'     => false,
 				'cron_frequency'   => 'daily',
 				'cart_beneficiary_enabled' => false,
+				'support_email'    => 'support@masterspa.ro',
+				'order_timeout'    => 15,
+				'judet_map'        => array(),
 			);
 			add_option( 'masterspa_settings', $default_settings );
 		}
@@ -226,6 +231,7 @@ class MasterSpa_WP_Plugin {
 			wp_unschedule_event( $timestamp, 'masterspa_scheduled_import' );
 		}
 		wp_clear_scheduled_hook( 'masterspa_scheduled_import' );
+		wp_clear_scheduled_hook( 'masterspa_retry_order_sync' );
 	}
 }
 
@@ -234,7 +240,7 @@ function my_plugin_enqueue_styles() {
         'my-plugin-style', // handle unic
         plugin_dir_url(__FILE__) . 'assets/css/style.css', // path către CSS
         array(), // dependințe (ex: array('woocommerce'))
-        '1.0.0', // versiune
+        MASTERSPA_VERSION, // versiune
         'all' // media
     );
 }

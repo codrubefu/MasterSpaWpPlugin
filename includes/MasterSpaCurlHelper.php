@@ -42,12 +42,17 @@ class MasterSpaCurlHelper
         curl_setopt($ch, CURLOPT_POST, true);
         curl_setopt($ch, CURLOPT_HTTPHEADER, $default_headers);
         curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+        // Timeouts: without them an unreachable server blocks the checkout request.
+        $timeout = isset($settings['order_timeout']) ? (int) $settings['order_timeout'] : 15;
+        $timeout = max(5, min(60, $timeout));
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, min(5, $timeout));
+        curl_setopt($ch, CURLOPT_TIMEOUT, $timeout);
         $response = curl_exec($ch);
        
         $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $error = curl_error($ch);
         curl_close($ch);
-        $log_entry .= "\nData: " . json_encode($data) . "\nResponse: $response\nHTTP Code: $http_code\nError: $error\n";
+        $log_entry .= "\nResponse: $response\nHTTP Code: $http_code\nError: $error\n";
         if (class_exists('MasterSpaLogHelper')) {
             MasterSpaLogHelper::write($log_entry);
         }
@@ -55,6 +60,7 @@ class MasterSpaCurlHelper
         return array(
             'response' => $response,
             'http_code' => $http_code,
+            'code' => $http_code,
             'error' => $error ?: null
         );
     }

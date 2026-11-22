@@ -182,8 +182,13 @@ class MasterSpa_Importer {
 		
 		// Extract product fields
 		$title       = ! empty( $product_data['art'] ) ? sanitize_text_field( $product_data['art'] ) : '';
-		// Description: info1 + info2 (each as its own paragraph). Fallback to desc1 if both are empty.
+		// Description: BriefWebSummary (genprod.summary) + info1 + info2 (each as its own paragraph).
+		// Fallback to desc1 if all are empty.
 		$info_parts = array();
+		$summary    = $this->extract_summary( $product_data );
+		if ( '' !== $summary ) {
+			$info_parts[] = wpautop( wp_kses_post( $summary ) );
+		}
 		foreach ( array( 'info1', 'info2' ) as $info_key ) {
 			if ( isset( $product_data[ $info_key ] ) && '' !== trim( (string) $product_data[ $info_key ] ) ) {
 				$info_parts[] = wpautop( wp_kses_post( trim( (string) $product_data[ $info_key ] ) ) );
@@ -193,6 +198,10 @@ class MasterSpa_Importer {
 			$description = implode( "\n", $info_parts );
 		} else {
 			$description = ! empty( $product_data['desc1'] ) ? wp_kses_post( $product_data['desc1'] ) : '';
+		}
+		if ( '' !== $description ) {
+			// Wrapper used by the frontend CSS (text-align: justify).
+			$description = '<div class="masterspa-product-description">' . $description . '</div>';
 		}
 		$clasa       = ! empty( $product_data['clasa'] ) ? sanitize_text_field( $product_data['clasa'] ) : '';
 		$grupa       = ! empty( $product_data['grupa'] ) ? sanitize_text_field( $product_data['grupa'] ) : '';
@@ -226,9 +235,16 @@ class MasterSpa_Importer {
 		// Process prices
 		$prices = $this->extract_prices( $product_data );
 		
+		// Product name shown on the site: "art – pretdesc" (offer validity period from pret.pretdesc).
+		// The SKU is still generated from the plain 'art' value, so existing products are matched.
+		$display_title = $title;
+		if ( '' !== $prices['desc'] ) {
+			$display_title = $title . ' – ' . $prices['desc'];
+		}
+
 		// Prepare product data
 		$product_args = array(
-			'post_title'   => $title,
+			'post_title'   => $display_title,
 			'post_content' => $description,
 			'post_status'  => ! empty( $this->settings['product_status'] ) ? $this->settings['product_status'] : 'publish',
 			'post_type'    => 'product',
@@ -275,6 +291,10 @@ class MasterSpa_Importer {
 		if ( ! $dry_run && $product_id ) {
 			// Set SKU
 			update_post_meta( $product_id, '_sku', $sku );
+
+			// Original API fields (name without the offer period, offer description)
+			update_post_meta( $product_id, '_masterspa_art', $title );
+			update_post_meta( $product_id, '_masterspa_pretdesc', $prices['desc'] );
 
 			// Set prices
 			if ( ! empty( $prices['regular'] ) ) {
@@ -377,6 +397,7 @@ class MasterSpa_Importer {
 		$prices = array(
 			'regular' => 0,
 			'sale'    => 0,
+			'desc'    => '',
 		);
 		
 		if ( empty( $product_data['pret'] ) || ! is_array( $product_data['pret'] ) ) {
@@ -384,13 +405,26 @@ class MasterSpa_Importer {
 		}
 		
 		$price_values = array();
+		$price_descs  = array(); // price (string key) => pretdesc
+		$first_desc   = '';
 		
 		// Extract all price values
 		foreach ( $product_data['pret'] as $price_item ) {
+			if ( ! is_array( $price_item ) ) {
+				continue;
+			}
+			$desc = isset( $price_item['pretdesc'] ) ? trim( sanitize_text_field( (string) $price_item['pretdesc'] ) ) : '';
+			if ( '' !== $desc && '' === $first_desc ) {
+				$first_desc = $desc;
+			}
 			if ( isset( $price_item['pret'] ) ) {
 				$price = $this->normalize_price( $price_item['pret'] );
 				if ( $price > 0 ) {
 					$price_values[] = $price;
+					$key            = (string) $price;
+					if ( '' !== $desc && empty( $price_descs[ $key ] ) ) {
+						$price_descs[ $key ] = $desc;
+					}
 				}
 			}
 		}
@@ -399,6 +433,7 @@ class MasterSpa_Importer {
 		sort( $price_values, SORT_NUMERIC );
 		
 		if ( empty( $price_values ) ) {
+			$prices['desc'] = $first_desc;
 			return $prices;
 		}
 		
@@ -411,10 +446,29 @@ class MasterSpa_Importer {
 			$prices['sale']    = min( $price_values );
 			$prices['regular'] = max( $price_values );
 		}
+
+		// Offer description: the pretdesc of the price actually charged (sale if any, else regular).
+		$active_key = (string) ( $prices['sale'] > 0 ? $prices['sale'] : $prices['regular'] );
+		$prices['desc'] = ! empty( $price_descs[ $active_key ] ) ? $price_descs[ $active_key ] : $first_desc;
 		
 		return $prices;
 	}
 	
+	/**
+	 * Extract BriefWebSummary (genprod.summary) from product data
+	 *
+	 * @param array $product_data Product data
+	 * @return string
+	 */
+	private function extract_summary( $product_data ) {
+		foreach ( array( 'summary', 'BriefWebSummary', 'briefWebSummary', 'brief_web_summary' ) as $key ) {
+			if ( isset( $product_data[ $key ] ) && is_scalar( $product_data[ $key ] ) && '' !== trim( (string) $product_data[ $key ] ) ) {
+				return trim( (string) $product_data[ $key ] );
+			}
+		}
+		return '';
+	}
+
 	/**
 	 * Normalize price value
 	 *
