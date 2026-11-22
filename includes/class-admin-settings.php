@@ -157,6 +157,23 @@ class MasterSpa_Admin_Settings {
 		// Webhook URL for order completed
 		$sanitized['order_completed_webhook_url'] = ! empty( $settings['order_completed_webhook_url'] ) ? esc_url_raw( $settings['order_completed_webhook_url'] ) : '';
 
+		// Order sync: timeout + support email notified when the server cannot be reached
+		$sanitized['order_timeout'] = ! empty( $settings['order_timeout'] ) ? max( 5, min( 60, absint( $settings['order_timeout'] ) ) ) : 15;
+		$support_email              = ! empty( $settings['support_email'] ) ? sanitize_email( $settings['support_email'] ) : '';
+		$sanitized['support_email'] = is_email( $support_email ) ? $support_email : 'support@masterspa.ro';
+
+		// County code (WooCommerce) => ID from the `judet` table
+		$sanitized['judet_map'] = array();
+		if ( ! empty( $settings['judet_map'] ) && is_array( $settings['judet_map'] ) ) {
+			foreach ( $settings['judet_map'] as $code => $id ) {
+				$code = strtoupper( sanitize_key( $code ) );
+				$id   = trim( (string) $id );
+				if ( '' !== $code && '' !== $id && ctype_digit( $id ) ) {
+					$sanitized['judet_map'][ $code ] = (int) $id;
+				}
+			}
+		}
+
 		return $sanitized;
 	}
 	
@@ -235,6 +252,26 @@ class MasterSpa_Admin_Settings {
 								</td>
 							</tr>
 							
+							<tr>
+								<th scope="row">
+									<label for="order_timeout"><?php esc_html_e( 'Timeout trimitere comandă (secunde)', 'masterspa-wp-plugin' ); ?></label>
+								</th>
+								<td>
+									<input type="number" name="masterspa_settings[order_timeout]" id="order_timeout" value="<?php echo esc_attr( ! empty( $settings['order_timeout'] ) ? $settings['order_timeout'] : 15 ); ?>" min="5" max="60" class="small-text">
+									<p class="description"><?php esc_html_e( 'Cât așteaptă site-ul răspunsul serverului la plasarea comenzii (5-60 secunde). Dacă serverul nu răspunde, comanda este pusă în așteptare.', 'masterspa-wp-plugin' ); ?></p>
+								</td>
+							</tr>
+
+							<tr>
+								<th scope="row">
+									<label for="support_email"><?php esc_html_e( 'Email suport', 'masterspa-wp-plugin' ); ?></label>
+								</th>
+								<td>
+									<input type="email" name="masterspa_settings[support_email]" id="support_email" value="<?php echo esc_attr( ! empty( $settings['support_email'] ) ? $settings['support_email'] : 'support@masterspa.ro' ); ?>" class="regular-text">
+									<p class="description"><?php esc_html_e( 'Adresa notificată când o comandă nu poate fi trimisă către server.', 'masterspa-wp-plugin' ); ?></p>
+								</td>
+							</tr>
+
 							<tr>
 								<th scope="row">
 									<label for="request_method"><?php esc_html_e( 'Request Method', 'masterspa-wp-plugin' ); ?></label>
@@ -329,6 +366,38 @@ class MasterSpa_Admin_Settings {
 										<?php esc_html_e( 'Activează setarea beneficiarului în coș', 'masterspa-wp-plugin' ); ?>
 									</label>
 									<p class="description"><?php esc_html_e( 'Permite clientului să introducă datele beneficiarului (prenume, nume, email, telefon) pentru fiecare produs din coș.', 'masterspa-wp-plugin' ); ?></p>
+								</td>
+							</tr>
+
+							<tr>
+								<th scope="row"><?php esc_html_e( 'Județe (ID din tabela judet)', 'masterspa-wp-plugin' ); ?></th>
+								<td>
+									<?php
+									$ro_states = function_exists( 'WC' ) && WC()->countries ? WC()->countries->get_states( 'RO' ) : array();
+									$judet_map = ! empty( $settings['judet_map'] ) && is_array( $settings['judet_map'] ) ? $settings['judet_map'] : array();
+									?>
+									<details>
+										<summary><?php esc_html_e( 'Afișează / editează corespondența', 'masterspa-wp-plugin' ); ?></summary>
+										<table class="widefat striped" style="max-width:420px; margin-top:8px;">
+											<thead>
+												<tr>
+													<th><?php esc_html_e( 'Cod', 'masterspa-wp-plugin' ); ?></th>
+													<th><?php esc_html_e( 'Județ', 'masterspa-wp-plugin' ); ?></th>
+													<th><?php esc_html_e( 'ID judet', 'masterspa-wp-plugin' ); ?></th>
+												</tr>
+											</thead>
+											<tbody>
+												<?php foreach ( $ro_states as $code => $name ) : ?>
+													<tr>
+														<td><code><?php echo esc_html( $code ); ?></code></td>
+														<td><?php echo esc_html( html_entity_decode( $name, ENT_QUOTES, 'UTF-8' ) ); ?></td>
+														<td><input type="number" min="1" class="small-text" name="masterspa_settings[judet_map][<?php echo esc_attr( $code ); ?>]" value="<?php echo esc_attr( isset( $judet_map[ $code ] ) ? $judet_map[ $code ] : '' ); ?>"></td>
+													</tr>
+												<?php endforeach; ?>
+											</tbody>
+										</table>
+									</details>
+									<p class="description"><?php esc_html_e( 'ID-ul fiecărui județ din tabela judet. Se trimite în payload-ul comenzii ca judet.id și billing.judet_id, alături de codul și numele județului.', 'masterspa-wp-plugin' ); ?></p>
 								</td>
 							</tr>
 

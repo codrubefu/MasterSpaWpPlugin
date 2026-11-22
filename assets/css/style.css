@@ -73,3 +73,54 @@
 	width:80px !important;
 }
 
+
+/* ---------- Pagina pachetului (produs spa) ---------- */
+
+/* Fără SKU / Categorii / Etichetă (fallback pentru teme care nu folosesc hook-ul standard) */
+.masterspa-spa-product .product_meta,
+.masterspa-spa-product .wp-block-woocommerce-product-meta,
+.masterspa-spa-product .wc-block-components-product-sku {
+	display: none !important;
+}
+
+/* Descriere, conținut, indicații: aliniere Justify */
+.masterspa-product-description,
+.masterspa-product-description p,
+.masterspa-spa-product .woocommerce-Tabs-panel--description,
+.masterspa-spa-product .woocommerce-Tabs-panel--description p,
+.masterspa-spa-product .woocommerce-product-details__short-description,
+.masterspa-spa-product .woocommerce-product-details__short-description p,
+.masterspa-spa-product .wp-block-woocommerce-product-details p,
+.masterspa-spa-product .wp-block-post-excerpt p {
+	text-align: justify;
+	hyphens: auto;
+}
+
+/* ---------- Checkout: câmpuri obligatorii cu steluță roșie ---------- */
+
+/* Checkout clasic */
+.woocommerce form .form-row .required,
+.woocommerce form .form-row abbr.required {
+	color: #e2401c !important;
+	text-decoration: none;
+	border: 0;
+	visibility: visible;
+}
+
+/* Checkout block: câmpuri text */
+.wc-block-components-text-input input[required] + label::after,
+.wc-block-components-text-input input[aria-required="true"] + label::after,
+.wc-block-components-text-input textarea[required] + label::after {
+	content: " *";
+	color: #e2401c;
+}
+
+/* Checkout block: select (Țară / Județ) */
+.wc-blocks-components-select:has(select[required]) .wc-blocks-components-select__label::after,
+.wc-blocks-components-select:has(select[aria-required="true"]) .wc-blocks-components-select__label::after,
+.wc-block-components-combobox:has(input[required]) label::after,
+.wc-block-components-combobox:has(input[aria-required="true"]) label::after,
+.wc-block-components-state-input:has([required]) label::after {
+	content: " *";
+	color: #e2401c;
+}
