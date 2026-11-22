@@ -39,27 +39,28 @@ class MasterSpa_Logger {
 	 */
 	public static function create_table() {
 		global $wpdb;
-		
+
 		$table_name      = self::get_table_name();
 		$charset_collate = $wpdb->get_charset_collate();
-		
-		$sql = "CREATE TABLE IF NOT EXISTS $table_name (
+
+		// No "IF NOT EXISTS": dbDelta() parses the table name from "CREATE TABLE <name>".
+		$sql = "CREATE TABLE $table_name (
 			id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
 			import_date datetime NOT NULL,
 			log_type varchar(20) NOT NULL,
 			sku varchar(255) DEFAULT NULL,
 			product_id bigint(20) UNSIGNED DEFAULT NULL,
-			message text NOT NULL,
+			message longtext NOT NULL,
 			created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			PRIMARY KEY  (id),
 			KEY import_date (import_date),
 			KEY log_type (log_type)
 		) $charset_collate;";
-		
+
 		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 		dbDelta( $sql );
 	}
-	
+
 	/**
 	 * Log a message
 	 *
@@ -112,6 +113,48 @@ class MasterSpa_Logger {
 		return $wpdb->get_results( $wpdb->prepare( $sql, $limit ) );
 	}
 	
+	/**
+	 * Logs with pagination and optional type filter (admin logs page).
+	 *
+	 * @param int    $paged    Page number (1-based).
+	 * @param int    $per_page Rows per page.
+	 * @param string $type     Log type filter ('' = all).
+	 * @return array{logs: array, total: int, pages: int}
+	 */
+	public static function get_logs_page( $paged = 1, $per_page = 20, $type = '' ) {
+		global $wpdb;
+
+		$table_name = self::get_table_name();
+		$paged      = max( 1, (int) $paged );
+		$per_page   = max( 1, (int) $per_page );
+		$where      = '';
+		if ( '' !== $type ) {
+			$where = $wpdb->prepare( ' WHERE log_type = %s', $type );
+		}
+
+		$total = (int) $wpdb->get_var( "SELECT COUNT(*) FROM $table_name$where" ); // phpcs:ignore WordPress.DB.PreparedSQL
+		$logs  = $wpdb->get_results(
+			$wpdb->prepare( "SELECT * FROM $table_name$where ORDER BY id DESC LIMIT %d OFFSET %d", $per_page, ( $paged - 1 ) * $per_page ) // phpcs:ignore WordPress.DB.PreparedSQL
+		);
+
+		return array(
+			'logs'  => $logs ? $logs : array(),
+			'total' => $total,
+			'pages' => (int) ceil( $total / $per_page ),
+		);
+	}
+
+	/**
+	 * Distinct log types present in the table.
+	 *
+	 * @return string[]
+	 */
+	public static function get_log_types() {
+		global $wpdb;
+		$table_name = self::get_table_name();
+		return $wpdb->get_col( "SELECT DISTINCT log_type FROM $table_name ORDER BY log_type" ); // phpcs:ignore WordPress.DB.PreparedSQL
+	}
+
 	/**
 	 * Get logs for a specific import date
 	 *
