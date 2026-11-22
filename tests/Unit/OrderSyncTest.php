@@ -37,4 +37,32 @@ class OrderSyncTest extends TestCase {
 			\MasterSpaCurlHelper::normalize_headers( array( 'Idempotency-Key' => 'wc_order_1', 'X-Test: a: b', 'broken' ) )
 		);
 	}
+
+	public function test_secrets_masked_in_log_headers() {
+		$lines = \MasterSpaCurlHelper::headers_for_log( array( 'Content-Type' => 'application/json', 'X-API-Secret' => 's3cr3t', 'Idempotency-Key' => 'wc_order_x' ) );
+		$this->assertSame( array( 'Content-Type: application/json', 'X-API-Secret: ***', 'Idempotency-Key: ***' ), $lines );
+	}
+
+	public function test_payload_description_has_no_personal_data() {
+		$data = array( 'id' => 42, 'total' => '100.00', 'items' => array( array(), array() ), 'billing' => array( 'email' => 'ana@example.com' ) );
+		$text = \MasterSpaCurlHelper::describe_payload( $data, json_encode( $data ) );
+		$this->assertStringContainsString( 'order #42', $text );
+		$this->assertStringContainsString( '2 items', $text );
+		$this->assertStringNotContainsString( 'ana@example.com', $text );
+	}
+
+	public function test_order_meta_whitelist() {
+		\Brain\Monkey\Functions\when( 'apply_filters' )->returnArg( 2 );
+		$this->assertTrue( masterspa_order_meta_key_allowed( '_billing_cui' ) );
+		$this->assertTrue( masterspa_order_meta_key_allowed( '_shipping_phone' ) );
+		$this->assertTrue( masterspa_order_meta_key_allowed( '_order_info' ) );
+		$this->assertFalse( masterspa_order_meta_key_allowed( '_wc_order_attribution_user_agent' ) );
+		$this->assertFalse( masterspa_order_meta_key_allowed( '_masterspa_sync_error' ) );
+		$this->assertFalse( masterspa_order_meta_key_allowed( '_stripe_customer_id' ) );
+	}
+
+	public function test_webhook_has_no_fallback_to_product_feed() {
+		\Brain\Monkey\Functions\when( 'get_option' )->justReturn( array( 'api_endpoint' => 'http://api/products' ) );
+		$this->assertSame( '', masterspa_get_order_webhook_url() );
+	}
 }
