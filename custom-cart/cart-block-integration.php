@@ -16,45 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 const MASTERSPA_STORE_API_NAMESPACE = 'masterspa';
 
-/**
- * Empty subscriber row.
- *
- * @return array
- */
-function masterspa_empty_subscriber() {
-	return array(
-		'prenume'    => '',
-		'nume'       => '',
-		'email'      => '',
-		'phone'      => '',
-		'send_email' => '',
-	);
-}
-
-/**
- * Return the saved subscribers of a cart item, padded/truncated to its quantity.
- *
- * @param array $cart_item Cart item.
- * @return array
- */
-function masterspa_get_cart_item_subscribers( $cart_item ) {
-	$qty   = max( 1, (int) ( $cart_item['quantity'] ?? 1 ) );
-	$saved = is_array( $cart_item['subscription_user'] ?? null ) ? array_values( $cart_item['subscription_user'] ) : array();
-	$list  = array();
-
-	for ( $i = 0; $i < $qty; $i++ ) {
-		$row    = is_array( $saved[ $i ] ?? null ) ? $saved[ $i ] : array();
-		$list[] = array(
-			'prenume'    => (string) ( $row['prenume'] ?? '' ),
-			'nume'       => (string) ( $row['nume'] ?? '' ),
-			'email'      => (string) ( $row['email'] ?? '' ),
-			'phone'      => (string) ( $row['phone'] ?? '' ),
-			'send_email' => ! empty( $row['send_email'] ) ? '1' : '',
-		);
-	}
-
-	return $list;
-}
+// masterspa_empty_subscriber() / masterspa_get_cart_item_subscribers(): custom-cart/subscribers-common.php
 
 /**
  * Register Store API data + update callback.
@@ -123,14 +85,12 @@ function masterspa_register_store_api_extension() {
 					return;
 				}
 
+				if ( masterspa_subscriber_email_invalid( $data ) && class_exists( '\Automattic\WooCommerce\StoreApi\Exceptions\RouteException' ) ) {
+					throw new \Automattic\WooCommerce\StoreApi\Exceptions\RouteException( 'masterspa_invalid_subscriber_email', __( 'Adresa de email a beneficiarului nu este validă.', 'masterspa-wp-plugin' ), 400 );
+				}
+
 				$list           = masterspa_get_cart_item_subscribers( $item );
-				$list[ $index ] = array(
-					'prenume'    => sanitize_text_field( $data['prenume'] ?? '' ),
-					'nume'       => sanitize_text_field( $data['nume'] ?? '' ),
-					'email'      => sanitize_email( $data['email'] ?? '' ),
-					'phone'      => sanitize_text_field( $data['phone'] ?? '' ),
-					'send_email' => ! empty( $data['send_email'] ) ? '1' : '',
-				);
+				$list[ $index ] = masterspa_sanitize_subscriber( $data );
 
 				$cart->cart_contents[ $key ]['subscription_user'] = $list;
 				$cart->set_session();
